@@ -1,0 +1,63 @@
+{
+  "name": "ahegyes/wp-framework-core",
+  "description": "PSR-11-based plugin kernel and lifecycle framework for WordPress — interface-driven components, two-pass boot, settings abstraction, DDD-lite primitives (value objects, result types, exception hierarchy).",
+  "type": "library",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/ahegyes/wordpress-framework",
+  "authors": [
+    {
+      "name": "Contributors",
+      "homepage": "https://github.com/ahegyes/wordpress-framework/graphs/contributors"
+    }
+  ],
+  "keywords": ["wordpress", "wordpress-plugin", "framework", "kernel", "lifecycle", "settings", "value-object"],
+  "support": {
+    "issues": "https://github.com/ahegyes/wordpress-framework/issues",
+    "source": "https://github.com/ahegyes/wordpress-framework"
+  },
+
+  "require": {
+    "php": ">=8.5",
+    "ahegyes/wp-framework-bootstrap": "^2.0@dev",
+    "psr/container": "^2",
+    "psr/log": "^3"
+  },
+  "require-dev": {
+    "ahegyes/wordpress-configs": "dev-trunk",
+    "phpunit/phpunit": "^13"
+  },
+
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+
+  "autoload": {
+    "psr-4": {
+      "DeepWebSolutions\\Framework\\Core\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "DeepWebSolutions\\Framework\\Core\\Tests\\": "tests/"
+    }
+  },
+
+  "scripts": {
+    "test": "@php vendor/bin/phpunit",
+    "test:unit": "@php vendor/bin/phpunit --testsuite=Unit"
+  },
+
+  "extra": {
+    "branch-alias": {
+      "dev-trunk": "2.0.x-dev"
+    }
+  },
+
+  "config": {
+    "allow-plugins": {
+      "composer/*": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
+    },
+    "sort-packages": true
+  }
+}
