@@ -24,6 +24,7 @@
   },
   "require-dev": {
     "ahegyes/wordpress-configs": "dev-trunk",
+    "php-stubs/wordpress-stubs": "*",
     "phpunit/phpunit": "^13"
   },
 
@@ -49,7 +50,10 @@
   "extra": {
     "branch-alias": {
       "dev-trunk": "2.0.x-dev"
-    }
+    },
+    "scoping-stubs": [
+      "php-stubs/wordpress-stubs"
+    ]
   },
 
   "config": {
