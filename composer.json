@@ -1,6 +1,6 @@
 {
   "name": "ahegyes/wp-framework-core",
-  "description": "PSR-11-based plugin kernel and lifecycle framework for WordPress — interface-driven components, two-pass boot, settings abstraction, DDD-lite primitives (value objects, result types, exception hierarchy).",
+  "description": "PSR-11-based plugin kernel and lifecycle framework for WordPress — interface-driven components, two-pass boot dispatch.",
   "type": "library",
   "license": "GPL-2.0-or-later",
   "homepage": "https://github.com/ahegyes/wordpress-framework",
@@ -53,7 +53,21 @@
     },
     "scoping-stubs": [
       "php-stubs/wordpress-stubs"
-    ]
+    ],
+    "changelogger": {
+      "versioning": "semver",
+      "changelog": "CHANGELOG.md",
+      "changes-dir": "changelog",
+      "default-type": "changed",
+      "types": {
+        "added": "Added",
+        "changed": "Changed",
+        "deprecated": "Deprecated",
+        "removed": "Removed",
+        "fixed": "Fixed",
+        "security": "Security"
+      }
+    }
   },
 
   "config": {
