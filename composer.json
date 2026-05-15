@@ -10,7 +10,7 @@
       "homepage": "https://github.com/ahegyes/wordpress-framework/graphs/contributors"
     }
   ],
-  "keywords": ["wordpress", "wordpress-plugin", "framework", "kernel", "lifecycle", "settings", "value-object"],
+  "keywords": ["wordpress", "wordpress-plugin", "framework", "kernel", "lifecycle"],
   "support": {
     "issues": "https://github.com/ahegyes/wordpress-framework/issues",
     "source": "https://github.com/ahegyes/wordpress-framework"
@@ -19,12 +19,13 @@
   "require": {
     "php": ">=8.5",
     "ahegyes/wp-framework-bootstrap": "^2.0@dev",
+    "ahegyes/wp-framework-shared": "^2.0@dev",
     "psr/container": "^2",
     "psr/log": "^3"
   },
   "require-dev": {
     "ahegyes/wordpress-configs": "dev-trunk",
-    "php-stubs/wordpress-stubs": "*",
+    "johnpbloch/wordpress-core": "^7.0@dev",
     "phpunit/phpunit": "^13"
   },
 

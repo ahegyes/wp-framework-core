@@ -1,6 +1,6 @@
 # wp-framework-core
 
-PSR-11-based plugin kernel and lifecycle framework. Interface-driven components (`HookableInterface`, `InitializableInterface`), two-pass boot dispatch.
+PSR-11-based plugin kernel and lifecycle framework. Interface-driven components with two-pass boot dispatch and state-based gating.
 
 Part of the [DWS WordPress framework](https://github.com/ahegyes/wordpress-framework) — see the monorepo for architecture, contributing, and the rest of the package set.
 

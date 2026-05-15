@@ -7,6 +7,8 @@ Pending entries live in [`changelog/`](./changelog) — add via `composer change
 ## 2.0.0 - unreleased
 
 ### Added
-- Initial release.
-- `PluginKernel` for two-pass component lifecycle dispatch.
-- `HookableInterface` and `InitializableInterface`.
+
+- **Complete rewrite of v1.** Lean library architecture: composition over inheritance, PSR-11 container wiring. PHP 8.5+, WordPress 7.0+. See README for architecture details.
+- **Plugin kernel** — orchestrates component lifecycle with two-pass dispatch and state-based gating.
+- **Lifecycle and state interface set** — typed contracts for hookable, initializable, activatable, uninstallable, and renderable components plus active/disabled state gating.
+- **Plugin header value object** — typed wrapper around WP plugin file headers with init-aware translation.
