@@ -23,11 +23,6 @@
     "psr/container": "^2",
     "psr/log": "^3"
   },
-  "require-dev": {
-    "ahegyes/wordpress-configs": "dev-trunk",
-    "johnpbloch/wordpress-core": "^7.0@dev",
-    "phpunit/phpunit": "^13"
-  },
 
   "minimum-stability": "dev",
   "prefer-stable": true,
@@ -35,17 +30,15 @@
   "autoload": {
     "psr-4": {
       "DeepWebSolutions\\Framework\\Core\\": "src/"
-    }
+    },
+    "files": [
+      "functions.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {
       "DeepWebSolutions\\Framework\\Core\\Tests\\": "tests/"
     }
-  },
-
-  "scripts": {
-    "test": "@php vendor/bin/phpunit",
-    "test:unit": "@php vendor/bin/phpunit --testsuite=Unit"
   },
 
   "extra": {
