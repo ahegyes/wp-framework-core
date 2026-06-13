@@ -12,6 +12,8 @@ final class InstallerInterfaceContractTest extends TestCase {
 		$log->calls = array();
 
 		$installer = new class( $log ) implements InstallerInterface {
+			private ?Version $stored = null;
+
 			public function __construct( private \stdClass $log ) {}
 
 			public function install(): void {
@@ -33,6 +35,19 @@ final class InstallerInterfaceContractTest extends TestCase {
 			public function uninstall(): void {
 				$this->log->calls[] = 'uninstall';
 			}
+
+			public function get_current_version(): Version {
+				return Version::from_string( '2.0.0' );
+			}
+
+			public function get_stored_version(): ?Version {
+				return $this->stored;
+			}
+
+			public function set_stored_version( Version $version ): void {
+				$this->stored      = $version;
+				$this->log->calls[] = 'set:' . $version->value;
+			}
 		};
 
 		$installer->install();
@@ -40,10 +55,12 @@ final class InstallerInterfaceContractTest extends TestCase {
 		$installer->activate( true );
 		$installer->deactivate();
 		$installer->uninstall();
+		$installer->set_stored_version( $installer->get_current_version() );
 
 		self::assertSame(
-			array( 'install', 'update:1.9.0', 'activate:network', 'deactivate:site', 'uninstall' ),
+			array( 'install', 'update:1.9.0', 'activate:network', 'deactivate:site', 'uninstall', 'set:2.0.0' ),
 			$log->calls,
 		);
+		self::assertSame( '2.0.0', $installer->get_stored_version()?->value );
 	}
 }

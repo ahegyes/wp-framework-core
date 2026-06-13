@@ -35,6 +35,16 @@ final class PluginInterfaceContractTest extends TestCase {
 			public function deactivate( bool $network_deactivating = false ): void {}
 
 			public function uninstall(): void {}
+
+			public function get_current_version(): Version {
+				return Version::from_string( '2.0.0' );
+			}
+
+			public function get_stored_version(): ?Version {
+				return null;
+			}
+
+			public function set_stored_version( Version $version ): void {}
 		};
 
 		$plugin = new class( $file, $container, $installer ) implements PluginInterface {
