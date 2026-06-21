@@ -7,7 +7,7 @@ use DeepWebSolutions\Framework\Shared\ValueObject\AbstractValueObject;
 use function DeepWebSolutions\Framework\Bootstrap\Plugin\get_plugin_metadata;
 
 /**
- * Typed read-once value object wrapping the WP plugin file header.
+ * Value object wrapping the WP plugin file header, read once and typed.
  *
  * The single source of truth is the file header comment of the plugin's main
  * file. Consumers must NOT type metadata values manually — pass the file path
