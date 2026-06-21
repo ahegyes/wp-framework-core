@@ -49,8 +49,8 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   PluginInterface       $plugin Plugin to boot.
-	 * @param   LoggerInterface|null  $logger Optional logger; names each Feature or component the kernel gates out and reports a failed installer routine.
+	 * @param   PluginInterface      $plugin Plugin to boot.
+	 * @param   LoggerInterface|null $logger Optional logger; names each Feature or component the kernel gates out and reports a failed installer routine.
 	 */
 	public function __construct(
 		private readonly PluginInterface $plugin,
@@ -68,8 +68,8 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   PluginInterface       $plugin Plugin to boot.
-	 * @param   LoggerInterface|null  $logger Optional diagnostic logger.
+	 * @param   PluginInterface      $plugin Plugin to boot.
+	 * @param   LoggerInterface|null $logger Optional diagnostic logger.
 	 *
 	 * @return  self
 	 */
@@ -268,8 +268,8 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   class-string                $component_class Component class to record.
-	 * @param   array<class-string, true>   $seen            Classes already encountered, by reference.
+	 * @param   class-string              $component_class Component class to record.
+	 * @param   array<class-string, true> $seen            Classes already encountered, by reference.
 	 *
 	 * @throws  FeatureException When the class has already been seen.
 	 */
