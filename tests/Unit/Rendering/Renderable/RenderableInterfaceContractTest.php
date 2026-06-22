@@ -1,8 +1,8 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Core\Tests\Unit\Lifecycle\Renderable;
+namespace DeepWebSolutions\Framework\Core\Tests\Unit\Rendering\Renderable;
 
-use DeepWebSolutions\Framework\Core\Lifecycle\Renderable\RenderableInterface;
+use DeepWebSolutions\Framework\Core\Rendering\Renderable\RenderableInterface;
 use PHPUnit\Framework\TestCase;
 
 final class RenderableInterfaceContractTest extends TestCase {

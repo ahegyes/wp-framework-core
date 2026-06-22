@@ -1,8 +1,8 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Core\Tests\Unit\Lifecycle\Outputtable;
+namespace DeepWebSolutions\Framework\Core\Tests\Unit\Rendering\Outputtable;
 
-use DeepWebSolutions\Framework\Core\Lifecycle\Outputtable\OutputtableInterface;
+use DeepWebSolutions\Framework\Core\Rendering\Outputtable\OutputtableInterface;
 use PHPUnit\Framework\TestCase;
 
 final class OutputtableInterfaceContractTest extends TestCase {

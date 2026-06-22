@@ -1,11 +1,11 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Core\Lifecycle\Renderable;
+namespace DeepWebSolutions\Framework\Core\Rendering\Renderable;
 
 /**
  * A component that RETURNS user-visible markup as a string. For WP surfaces whose
  * callback must return (not echo) — a Gutenberg block render_callback, a shortcode
- * handler. For echo surfaces (settings page, metabox) use {@see \DeepWebSolutions\Framework\Core\Lifecycle\Outputtable\OutputtableInterface}.
+ * handler. For echo surfaces (settings page, metabox) use {@see \DeepWebSolutions\Framework\Core\Rendering\Outputtable\OutputtableInterface}.
  * Invoked from the component's own WP callback, not by the kernel.
  *
  * @since   2.0.0

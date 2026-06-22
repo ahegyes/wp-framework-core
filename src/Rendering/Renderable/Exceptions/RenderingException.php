@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Core\Lifecycle\Renderable\Exceptions;
+namespace DeepWebSolutions\Framework\Core\Rendering\Renderable\Exceptions;
 
 use DeepWebSolutions\Framework\Shared\Exception\AbstractRuntimeException;
 
