@@ -37,7 +37,7 @@ final class PluginKernel {
 	 *
 	 * @var     bool
 	 */
-	private bool $booted = false;
+	protected bool $booted = false;
 
 	// endregion
 
@@ -53,8 +53,8 @@ final class PluginKernel {
 	 * @param   LoggerInterface|null $logger Optional logger; names each Feature or component the kernel gates out and reports a failed installer routine.
 	 */
 	public function __construct(
-		private readonly PluginInterface $plugin,
-		private readonly ?LoggerInterface $logger = null,
+		protected readonly PluginInterface $plugin,
+		protected readonly ?LoggerInterface $logger = null,
 	) {}
 
 	// endregion
@@ -169,7 +169,7 @@ final class PluginKernel {
 	 *
 	 * @return  bool True when the boot may proceed; false when the routine failed.
 	 */
-	private function run_installer(): bool {
+	protected function run_installer(): bool {
 		$installer = $this->plugin->get_installer();
 
 		try {
@@ -211,7 +211,7 @@ final class PluginKernel {
 	 *
 	 * @return  bool
 	 */
-	private function are_conditionals_met( string $feature_class, ContainerInterface $container ): bool {
+	protected function are_conditionals_met( string $feature_class, ContainerInterface $container ): bool {
 		foreach ( $feature_class::get_conditional_classes() as $conditional_class ) {
 			$conditional = $container->get( $conditional_class );
 
@@ -251,7 +251,7 @@ final class PluginKernel {
 	 *
 	 * @throws  FeatureException When a component class appears more than once in the graph.
 	 */
-	private function assert_unique_component_graph( array $features ): void {
+	protected function assert_unique_component_graph( array $features ): void {
 		/** @var array<class-string, true> $seen */
 		$seen = array();
 		foreach ( $features as $feature ) {
@@ -273,7 +273,7 @@ final class PluginKernel {
 	 *
 	 * @throws  FeatureException When the class has already been seen.
 	 */
-	private function assert_component_not_duplicated( string $component_class, array &$seen ): void {
+	protected function assert_component_not_duplicated( string $component_class, array &$seen ): void {
 		if ( isset( $seen[ $component_class ] ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- framework-internal exception; never reaches an HTML output context unescaped.
 			throw new FeatureException( 'Component ' . $component_class . ' is registered more than once; a component may belong to a single parent.' );
@@ -300,7 +300,7 @@ final class PluginKernel {
 	 *
 	 * @return  list<object>
 	 */
-	private function collect_runnable_components( array $features, ContainerInterface $container ): array {
+	protected function collect_runnable_components( array $features, ContainerInterface $container ): array {
 		/** @var list<object> $runnable */
 		$runnable = array();
 		foreach ( $features as $feature ) {
@@ -323,7 +323,7 @@ final class PluginKernel {
 	 * @param   ContainerInterface $container       Plugin container.
 	 * @param   list<object>       $runnable        Accumulating runnable list, by reference.
 	 */
-	private function collect_runnable_subtree( string $component_class, ContainerInterface $container, array &$runnable ): void {
+	protected function collect_runnable_subtree( string $component_class, ContainerInterface $container, array &$runnable ): void {
 		/** @var object $component */
 		$component = $container->get( $component_class );
 
@@ -359,7 +359,7 @@ final class PluginKernel {
 	 *
 	 * @return  bool
 	 */
-	private function is_runnable( object $component ): bool {
+	protected function is_runnable( object $component ): bool {
 		if ( $component instanceof EnabledInterface && ! $component->is_enabled() ) {
 			return false;
 		}
