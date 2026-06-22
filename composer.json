@@ -1,6 +1,6 @@
 {
   "name": "ahegyes/wp-framework-core",
-  "description": "PSR-11-based plugin kernel and lifecycle framework for WordPress — interface-driven components, three-pass boot dispatch.",
+  "description": "PSR-11-based plugin kernel and lifecycle framework for WordPress — interface-driven components, two-pass boot dispatch.",
   "type": "library",
   "license": "GPL-2.0-or-later",
   "homepage": "https://github.com/ahegyes/wordpress-framework",
@@ -30,10 +30,7 @@
   "autoload": {
     "psr-4": {
       "DeepWebSolutions\\Framework\\Core\\": "src/"
-    },
-    "files": [
-      "functions.php"
-    ]
+    }
   },
   "autoload-dev": {
     "psr-4": {

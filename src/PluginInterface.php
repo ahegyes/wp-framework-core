@@ -28,7 +28,10 @@ interface PluginInterface {
 
 	/**
 	 * Typed wrapper around the plugin's main-file WP header. The get_plugin_ prefix
-	 * keeps it clear of WordPress's theme-template get_header().
+	 * keeps it clear of WordPress's theme-template get_header(). A consumer-facing
+	 * accessor for the plugin's own metadata (display name, version, text domain);
+	 * the kernel boot reads the version from the installer, not from here, so this
+	 * stays part of the contract even though the engine does not consult it.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
