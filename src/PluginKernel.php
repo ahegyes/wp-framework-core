@@ -132,7 +132,7 @@ final class PluginKernel {
 		$surviving_features = array();
 		foreach ( $this->plugin->get_feature_classes() as $feature_class ) {
 			if ( $this->are_conditionals_met( $feature_class, $container ) ) {
-				/** @var FeatureInterface $feature */
+				/** @var FeatureInterface $feature */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
 				$feature              = $container->get( $feature_class );
 				$surviving_features[] = $feature;
 			}
@@ -252,7 +252,7 @@ final class PluginKernel {
 	 * @throws  FeatureException When a component class appears more than once in the graph.
 	 */
 	protected function assert_unique_component_graph( array $features ): void {
-		/** @var array<class-string, true> $seen */
+		/** @var array<class-string, true> $seen */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
 		$seen = array();
 		foreach ( $features as $feature ) {
 			foreach ( $feature->get_component_classes() as $component_class ) {
@@ -301,7 +301,7 @@ final class PluginKernel {
 	 * @return  list<object>
 	 */
 	protected function collect_runnable_components( array $features, ContainerInterface $container ): array {
-		/** @var list<object> $runnable */
+		/** @var list<object> $runnable */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
 		$runnable = array();
 		foreach ( $features as $feature ) {
 			foreach ( $feature->get_component_classes() as $component_class ) {
@@ -324,7 +324,7 @@ final class PluginKernel {
 	 * @param   list<object>       $runnable        Accumulating runnable list, by reference.
 	 */
 	protected function collect_runnable_subtree( string $component_class, ContainerInterface $container, array &$runnable ): void {
-		/** @var object $component */
+		/** @var object $component */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
 		$component = $container->get( $component_class );
 
 		if ( ! $this->is_runnable( $component ) ) {
