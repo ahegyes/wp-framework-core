@@ -9,6 +9,8 @@ Pending entries live in [`changelog/`](./changelog) — add via `composer change
 ### Added
 
 - **Complete rewrite of v1.** Lean library architecture: composition over inheritance, PSR-11 container wiring. PHP 8.5+, WordPress 7.0+. See README for architecture details.
-- **Plugin kernel** — orchestrates component lifecycle with two-pass dispatch and state-based gating.
-- **Lifecycle and state interface set** — typed contracts for hookable, initializable, activatable, uninstallable, and renderable components plus active/disabled state gating.
-- **Plugin header value object** — typed wrapper around WP plugin file headers with init-aware translation.
+- **Plugin kernel** — orchestrates the component graph on boot: runs the installer's version check, gates each feature on its conditionals before construction, validates the declared graph, then initializes every runnable component before registering any hooks.
+- **Feature and component model** — conditional-gated feature subtrees, kernel-dispatched composite components, and per-component enablement gating.
+- **Centralized installer** — install, update, activate, deactivate, and uninstall plus version I/O, with silent idempotent migrations driven from the kernel boot.
+- **Lifecycle and rendering markers** — typed contracts for hookable, initializable, renderable, and outputtable components.
+- **Plugin header value object** — typed wrapper around WP plugin file headers.
