@@ -159,10 +159,11 @@ final class PluginKernel {
 	// region HELPERS
 
 	/**
-	 * Runs the installer's version check: install() on a fresh site, update() when the
-	 * stored version is older than the current one, then records the current version.
-	 * Catches any failure so a broken migration cannot fatal every request — it logs,
-	 * leaves the stored version untouched for the next boot to retry, and stops the boot.
+	 * Resolves the installer and runs its version check: install() on a fresh site,
+	 * update() when the stored version is older than the current one, then records the
+	 * current version. The resolution sits inside the guard, so a non-resolvable installer
+	 * fails closed like a broken migration — it logs, leaves the stored version untouched
+	 * for the next boot to retry, and stops the boot instead of fataling every request.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -170,11 +171,10 @@ final class PluginKernel {
 	 * @return  bool True when the boot may proceed; false when the routine failed.
 	 */
 	protected function run_installer(): bool {
-		$installer = $this->plugin->get_installer();
-
 		try {
-			$stored  = $installer->get_stored_version();
-			$current = $installer->get_current_version();
+			$installer = $this->plugin->get_installer();
+			$stored    = $installer->get_stored_version();
+			$current   = $installer->get_current_version();
 
 			if ( null === $stored ) {
 				$installer->install();

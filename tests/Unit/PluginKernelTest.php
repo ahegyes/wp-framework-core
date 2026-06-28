@@ -399,6 +399,48 @@ final class PluginKernelTest extends TestCase {
 		self::assertContains( 'error', $levels );
 	}
 
+	public function test_throwing_installer_resolution_is_caught_and_halts_boot(): void {
+		$logger = new PluginKernelTestLogger();
+
+		// A container-backed get_installer() that throws — e.g. a missing or misconfigured
+		// installer binding — must be caught like any installer-routine failure, not propagate
+		// out of boot() and fatal every request. get_container() throws so the test also proves
+		// the boot stops before reaching the component graph.
+		$plugin = new class() implements PluginInterface {
+			public function get_plugin_file(): string {
+				return '/tmp/fake.php';
+			}
+
+			public function get_plugin_header(): PluginHeader {
+				throw new \RuntimeException( 'boot must not read the header' );
+			}
+
+			public function get_container(): ContainerInterface {
+				throw new \RuntimeException( 'boot must stop before resolving the container' );
+			}
+
+			/**
+			 * @return list<class-string<FeatureInterface>>
+			 */
+			public function get_feature_classes(): array {
+				return array();
+			}
+
+			public function get_installer(): InstallerInterface {
+				throw new \RuntimeException( 'installer cannot be resolved' );
+			}
+		};
+
+		PluginKernel::run( $plugin, $logger );
+
+		self::assertCount( 1, $logger->records );
+		self::assertSame( 'error', $logger->records[0]['level'] );
+
+		$exception = $logger->records[0]['context']['exception'] ?? null;
+		self::assertInstanceOf( \RuntimeException::class, $exception );
+		self::assertSame( 'installer cannot be resolved', $exception->getMessage() );
+	}
+
 	/**
 	 * @param array<string, object> $services
 	 */
