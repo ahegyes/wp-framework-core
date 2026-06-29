@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core;
 
+use DeepWebSolutions\Framework\Core\Feature\FeatureInterface;
 use DeepWebSolutions\Framework\Core\Installer\InstallerInterface;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
 use Psr\Container\ContainerInterface;
@@ -57,7 +58,7 @@ interface PluginInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @return  list<class-string<\DeepWebSolutions\Framework\Core\Feature\FeatureInterface>>
+	 * @return  list<class-string<FeatureInterface>>
 	 */
 	public function get_feature_classes(): array;
 
