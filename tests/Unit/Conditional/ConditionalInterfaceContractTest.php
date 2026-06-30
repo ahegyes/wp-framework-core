@@ -3,8 +3,10 @@
 namespace DeepWebSolutions\Framework\Core\Tests\Unit\Conditional;
 
 use DeepWebSolutions\Framework\Core\Conditional\ConditionalInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( ConditionalInterface::class )]
 final class ConditionalInterfaceContractTest extends TestCase {
 	public function test_passing_conditional_returns_true(): void {
 		$cond = new class() implements ConditionalInterface {

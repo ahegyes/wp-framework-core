@@ -4,8 +4,12 @@ namespace DeepWebSolutions\Framework\Core\Tests\Unit\Installer;
 
 use DeepWebSolutions\Framework\Core\Installer\InstallerInterface;
 use DeepWebSolutions\Framework\Shared\Version\Version;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( InstallerInterface::class )]
+#[UsesClass( Version::class )]
 final class InstallerInterfaceContractTest extends TestCase {
 	public function test_anonymous_installer_satisfies_contract(): void {
 		$log        = new \stdClass();

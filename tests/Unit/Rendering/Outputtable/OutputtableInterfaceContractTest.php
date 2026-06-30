@@ -3,8 +3,10 @@
 namespace DeepWebSolutions\Framework\Core\Tests\Unit\Rendering\Outputtable;
 
 use DeepWebSolutions\Framework\Core\Rendering\Outputtable\OutputtableInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( OutputtableInterface::class )]
 final class OutputtableInterfaceContractTest extends TestCase {
 	public function test_output_echoes_markup(): void {
 		$o = new class implements OutputtableInterface {

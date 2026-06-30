@@ -4,8 +4,10 @@ namespace DeepWebSolutions\Framework\Core\Tests\Unit\Feature;
 
 use DeepWebSolutions\Framework\Core\Conditional\ConditionalInterface;
 use DeepWebSolutions\Framework\Core\Feature\FeatureInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( FeatureInterface::class )]
 final class FeatureInterfaceContractTest extends TestCase {
 	public function test_anonymous_implementation_satisfies_contract(): void {
 		$feature = new class() implements FeatureInterface {

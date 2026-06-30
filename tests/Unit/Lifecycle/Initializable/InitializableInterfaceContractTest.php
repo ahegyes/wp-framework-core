@@ -4,9 +4,11 @@ namespace DeepWebSolutions\Framework\Core\Tests\Unit\Lifecycle\Initializable;
 
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\Exceptions\InitializationException;
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( InitializableInterface::class )]
 #[UsesClass( InitializationException::class )]
 final class InitializableInterfaceContractTest extends TestCase {
 	public function test_anonymous_implementation_satisfies_contract(): void {

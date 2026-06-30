@@ -3,8 +3,10 @@
 namespace DeepWebSolutions\Framework\Core\Tests\Unit\Lifecycle\Hookable;
 
 use DeepWebSolutions\Framework\Core\Lifecycle\Hookable\HookableInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( HookableInterface::class )]
 final class HookableInterfaceContractTest extends TestCase {
 	public function test_anonymous_implementation_satisfies_contract(): void {
 		$calls = new \stdClass();

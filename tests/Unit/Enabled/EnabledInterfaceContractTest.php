@@ -3,8 +3,10 @@
 namespace DeepWebSolutions\Framework\Core\Tests\Unit\Enabled;
 
 use DeepWebSolutions\Framework\Core\Enabled\EnabledInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+#[CoversClass( EnabledInterface::class )]
 final class EnabledInterfaceContractTest extends TestCase {
 	public function test_enabled_returns_true(): void {
 		$c = new class() implements EnabledInterface {
