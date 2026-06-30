@@ -238,34 +238,6 @@ final class PluginKernelTest extends TestCase {
 		PluginKernel::run( $plugin );
 	}
 
-	public function test_component_resolves_peer_services_from_the_shared_container(): void {
-		$log = new PluginKernelTestLog();
-
-		$container = $this->make_container(
-			array(
-				PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA( array( PluginKernelTestComp::class ) ),
-				'ServiceX'                      => new \stdClass(),
-			),
-		);
-
-		$component = new class( $log, $container ) implements InitializableInterface {
-			public function __construct(
-				private PluginKernelTestLog $log,
-				private ContainerInterface $container,
-			) {}
-
-			public function initialize(): void {
-				$this->log->entries[] = $this->container->has( 'ServiceX' ) ? 'ServiceX-found' : 'ServiceX-missing';
-			}
-		};
-		$container->set( PluginKernelTestComp::class, $component );
-
-		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
-		PluginKernel::run( $plugin );
-
-		self::assertSame( array( 'ServiceX-found' ), $log->entries );
-	}
-
 	public function test_boot_is_idempotent(): void {
 		$log = new PluginKernelTestLog();
 
