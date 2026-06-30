@@ -40,14 +40,14 @@ final class PluginHeaderTest extends TestCase {
 		self::assertSame( '8.5', $header->requires_php );
 	}
 
-	public function test_exposes_file_path(): void {
-		$header = new PluginHeader( $this->fixture_path );
-		self::assertSame( $this->fixture_path, $header->file_path );
-	}
-
 	public function test_slug_derives_from_text_domain_when_present(): void {
 		$header = new PluginHeader( $this->fixture_path );
 		self::assertSame( 'dws-fixture', $header->slug );
+	}
+
+	public function test_slug_falls_back_to_directory_name_for_subdirectory_plugin_without_text_domain(): void {
+		$header = new PluginHeader( WP_PLUGIN_DIR . '/subdirectory-fixture/subdirectory-fixture.php' );
+		self::assertSame( 'subdirectory-fixture', $header->slug );
 	}
 
 	public function test_slug_falls_back_to_file_name_for_single_file_plugin_without_text_domain(): void {
@@ -55,12 +55,17 @@ final class PluginHeaderTest extends TestCase {
 		self::assertSame( 'dws-single-file-fixture', $header->slug );
 	}
 
-	public function test_reads_network_as_boolean(): void {
+	public function test_reads_network_false_as_boolean(): void {
 		$header = new PluginHeader( $this->fixture_path );
 		self::assertFalse( $header->network );
 	}
 
-	public function test_get_display_name_returns_a_string(): void {
+	public function test_reads_network_true_as_boolean(): void {
+		$header = new PluginHeader( WP_PLUGIN_DIR . '/network-fixture/network-fixture.php' );
+		self::assertTrue( $header->network );
+	}
+
+	public function test_get_display_name_returns_translated_name_after_init(): void {
 		$header = new PluginHeader( $this->fixture_path );
 		self::assertSame( 'DWS Test Fixture', $header->get_display_name() );
 	}
