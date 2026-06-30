@@ -112,10 +112,14 @@ final class PluginKernel {
 	 * stops before any component runs. Otherwise each Feature's conditionals gate it in
 	 * or out, every surviving Feature's component tree is flattened with disabled
 	 * subtrees pruned, and every runnable component is initialized before any registers
-	 * hooks, so a hook callback may safely reach a peer in another Feature.
+	 * hooks, so a hook callback may safely reach a peer in another Feature. A failure resolving or running
+	 * a component fails closed — it is logged and the request registers nothing — except a malformed
+	 * component graph, which propagates so the developer error surfaces rather than passing silently.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @throws  FeatureException When the declared component graph is malformed: a duplicate or cyclic component, or a declared gate that is not a ConditionalInterface.
 	 */
 	public function boot(): void {
 		if ( $this->booted ) {
@@ -127,30 +131,43 @@ final class PluginKernel {
 			return;
 		}
 
-		$container = $this->plugin->get_container();
+		try {
+			$container = $this->plugin->get_container();
 
-		$surviving_features = array();
-		foreach ( $this->plugin->get_feature_classes() as $feature_class ) {
-			if ( $this->are_conditionals_met( $feature_class, $container ) ) {
-				/** @var FeatureInterface $feature */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
-				$feature              = $container->get( $feature_class );
-				$surviving_features[] = $feature;
+			$surviving_features = array();
+			foreach ( $this->plugin->get_feature_classes() as $feature_class ) {
+				if ( $this->are_conditionals_met( $feature_class, $container ) ) {
+					/** @var FeatureInterface $feature */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
+					$feature              = $container->get( $feature_class );
+					$surviving_features[] = $feature;
+				}
 			}
-		}
 
-		$this->assert_unique_component_graph( $surviving_features );
-		$runnable_components = $this->collect_runnable_components( $surviving_features, $container );
+			$this->assert_unique_component_graph( $surviving_features );
+			$runnable_components = $this->collect_runnable_components( $surviving_features, $container );
 
-		foreach ( $runnable_components as $component ) {
-			if ( $component instanceof InitializableInterface ) {
-				$component->initialize();
+			foreach ( $runnable_components as $component ) {
+				if ( $component instanceof InitializableInterface ) {
+					$component->initialize();
+				}
 			}
-		}
 
-		foreach ( $runnable_components as $component ) {
-			if ( $component instanceof HookableInterface ) {
-				$component->register_hooks();
+			foreach ( $runnable_components as $component ) {
+				if ( $component instanceof HookableInterface ) {
+					$component->register_hooks();
+				}
 			}
+		} catch ( FeatureException $error ) {
+			// A duplicate/cyclic component graph or a malformed gate is a deterministic developer error,
+			// not a runtime fault — it propagates so it surfaces in development rather than failing silently.
+			throw $error;
+		} catch ( \Throwable $error ) {
+			// A missing or throwing container binding (conditional, feature, or component) must not white-screen
+			// every request: fail closed like the installer — log and register nothing for this request.
+			$this->logger?->error(
+				'Plugin component boot failed; no components were registered for this request.',
+				array( 'exception' => $error ),
+			);
 		}
 	}
 
