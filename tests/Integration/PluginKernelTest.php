@@ -9,6 +9,7 @@ use DeepWebSolutions\Framework\Core\Lifecycle\Hookable\HookableInterface;
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterface;
 use DeepWebSolutions\Framework\Core\PluginInterface;
 use DeepWebSolutions\Framework\Core\PluginKernel;
+use DeepWebSolutions\Framework\Core\ValueObjects\BootStatus;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
 use DeepWebSolutions\Framework\Shared\Version\Version;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -150,8 +151,8 @@ final class PluginKernelTest extends TestCase {
 			self::assertSame( 10, \has_filter( 'dws_test_kernel_preexisting', $preexisting_cb ) );
 
 			self::assertInstanceOf( PluginKernel::class, $kernel );
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
-			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+			self::assertSame( array(), $kernel->boot_report->hooked_components );
 		} finally {
 			foreach ( array( 'dws_test_kernel_outer', 'dws_test_kernel_preexisting', 'dws_test_kernel_activated', 'dws_test_kernel_component', 'dws_test_kernel_thirdparty' ) as $tag ) {
 				\remove_all_filters( $tag );
@@ -197,9 +198,9 @@ final class PluginKernelTest extends TestCase {
 			self::assertSame( $before, $this->normalized_hook_table() );
 			self::assertFalse( \has_filter( 'dws_test_kernel_ctor' ) );
 			self::assertFalse( \has_filter( 'dws_test_kernel_init' ) );
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
-			self::assertSame( array( PluginKernelCtorAndInitHookComponent::class ), $kernel->get_boot_report()['initialized_components'] );
-			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+			self::assertSame( array( PluginKernelCtorAndInitHookComponent::class ), $kernel->boot_report->initialized_components );
+			self::assertSame( array(), $kernel->boot_report->hooked_components );
 		} finally {
 			\remove_all_filters( 'dws_test_kernel_ctor' );
 			\remove_all_filters( 'dws_test_kernel_init' );

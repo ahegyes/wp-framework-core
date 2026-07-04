@@ -13,6 +13,8 @@ use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterfa
 use DeepWebSolutions\Framework\Core\PluginInterface;
 use DeepWebSolutions\Framework\Core\PluginKernel;
 use DeepWebSolutions\Framework\Core\Tests\Support\FakeWordPressHook;
+use DeepWebSolutions\Framework\Core\ValueObjects\BootStatus;
+use DeepWebSolutions\Framework\Core\ValueObjects\PluginBootReport;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
 use DeepWebSolutions\Framework\Shared\Version\Version;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -24,6 +26,7 @@ require_once __DIR__ . '/../Support/wp-hook-stub-functions.php';
 
 #[CoversClass( PluginKernel::class )]
 #[UsesClass( FeatureException::class )]
+#[UsesClass( PluginBootReport::class )]
 #[UsesClass( Version::class )]
 final class PluginKernelTest extends TestCase {
 	public function test_initializes_all_components_before_registering_any_hooks(): void {
@@ -349,8 +352,8 @@ final class PluginKernelTest extends TestCase {
 		self::assertSame( '2.1.0', $installer->stored?->value );
 		self::assertSame( array(), $log->entries );
 		self::assertNotContains( PluginKernelTestComp::class, $container->resolved );
-		self::assertSame( 'blocked', $kernel->get_boot_report()['status'] );
-		self::assertSame( 'Stored plugin version 2.1.0 is newer than code version 2.0.0.', $kernel->get_boot_report()['failure'] );
+		self::assertSame( BootStatus::Blocked, $kernel->boot_report->status );
+		self::assertSame( 'Stored plugin version 2.1.0 is newer than code version 2.0.0.', $kernel->boot_report->failure );
 		self::assertSame( 'error', $logger->records[0]['level'] );
 		self::assertSame( 'Stored plugin version 2.1.0 is newer than code version 2.0.0; skipping component boot for this request.', $logger->records[0]['message'] );
 		self::assertSame(
@@ -423,13 +426,13 @@ final class PluginKernelTest extends TestCase {
 					'conditional' => PluginKernelTestFailingCond::class,
 				),
 			),
-			$kernel->get_boot_report()['gated_features'],
+			$kernel->boot_report->gated_features,
 		);
-		self::assertSame( array( PluginKernelTestLeafA::class ), $kernel->get_boot_report()['pruned_components'] );
-		self::assertSame( array( PluginKernelTestComp::class ), $kernel->get_boot_report()['inert_components'] );
-		self::assertSame( array( PluginKernelTestComp::class, PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['runnable_components'] );
-		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['initialized_components'] );
-		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['hooked_components'] );
+		self::assertSame( array( PluginKernelTestLeafA::class ), $kernel->boot_report->pruned_components );
+		self::assertSame( array( PluginKernelTestComp::class ), $kernel->boot_report->inert_components );
+		self::assertSame( array( PluginKernelTestComp::class, PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->boot_report->runnable_components );
+		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->boot_report->initialized_components );
+		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->boot_report->hooked_components );
 		self::assertSame( array( 'group:init', 'leafB:init', 'group:hooks', 'leafB:hooks' ), $log->entries );
 
 		$contexts   = \array_column( $logger->records, 'context' );
@@ -518,8 +521,8 @@ final class PluginKernelTest extends TestCase {
 
 			self::assertSame( $before, $this->normalized_hook_table() );
 			self::assertArrayNotHasKey( 'new_hook', $this->normalized_hook_table() );
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
-			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+			self::assertSame( array(), $kernel->boot_report->hooked_components );
 			self::assertSame( 'error', $logger->records[0]['level'] );
 			self::assertSame(
 				'Plugin component boot failed; every hook registered during the attempt (constructor, initialize(), register_hooks()) was rolled back. Non-hook side effects are not transactional. ' . \RuntimeException::class . ': hook registration failed',
@@ -564,8 +567,8 @@ final class PluginKernelTest extends TestCase {
 			$kernel = PluginKernel::run( $plugin, $logger );
 
 			self::assertSame( $before, $this->normalized_hook_table() );
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
-			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+			self::assertSame( array(), $kernel->boot_report->hooked_components );
 			self::assertSame( 'error', $logger->records[0]['level'] );
 		} finally {
 			if ( $had_wp_filter ) {
@@ -595,8 +598,8 @@ final class PluginKernelTest extends TestCase {
 			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
 			$kernel = PluginKernel::run( $plugin, new PluginKernelTestThrowingLogger() );
 
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
-			self::assertStringContainsString( 'hook registration failed', (string) $kernel->get_boot_report()['failure'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+			self::assertStringContainsString( 'hook registration failed', (string) $kernel->boot_report->failure );
 		} finally {
 			if ( $had_wp_filter ) {
 				$GLOBALS['wp_filter'] = $prior_filter;
@@ -639,7 +642,7 @@ final class PluginKernelTest extends TestCase {
 			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
 			$kernel = PluginKernel::run( $plugin, $logger );
 
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
 			self::assertContains( 'warning', \array_column( $logger->records, 'level' ) );
 			self::assertArrayHasKey( 'direct_key', $directly_added_hook->callbacks[10] );
 		} finally {
@@ -730,10 +733,10 @@ final class PluginKernelTest extends TestCase {
 			self::assertInstanceOf( FeatureException::class, $caught );
 			self::assertSame( $before, $this->normalized_hook_table() );
 			self::assertArrayNotHasKey( 'feature_resolution_hook', $this->normalized_hook_table() );
-			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
 			self::assertSame(
 				FeatureException::class . ': Component ' . PluginKernelTestComp::class . ' is registered more than once; a component may belong to a single parent.',
-				$kernel->get_boot_report()['failure'],
+				$kernel->boot_report->failure,
 			);
 		} finally {
 			if ( $had_wp_filter ) {
@@ -757,26 +760,46 @@ final class PluginKernelTest extends TestCase {
 		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
 		$kernel = PluginKernel::run( $plugin );
 
-		self::assertSame( array( PluginKernelTestComp::class ), $kernel->get_boot_report()['inert_components'] );
+		self::assertSame( array( PluginKernelTestComp::class ), $kernel->boot_report->inert_components );
 		self::assertSame( array( 'B:init', 'B:hooks' ), $log->entries );
 	}
 
 	public function test_boot_report_before_boot_has_the_full_not_started_shape(): void {
 		$kernel = new PluginKernel( $this->make_plugin( $this->make_container( array() ), array() ) );
+		$report = $kernel->boot_report;
 
-		self::assertSame(
+		self::assertSame( BootStatus::NotStarted, $report->status );
+		self::assertNull( $report->failure );
+		self::assertSame( array(), $report->gated_features );
+		self::assertSame( array(), $report->pruned_components );
+		self::assertSame( array(), $report->runnable_components );
+		self::assertSame( array(), $report->inert_components );
+		self::assertSame( array(), $report->initialized_components );
+		self::assertSame( array(), $report->hooked_components );
+	}
+
+	public function test_boot_report_reads_as_running_while_boot_is_in_flight(): void {
+		$observed  = null;
+		$container = $this->make_container(
 			array(
-				'status'                 => 'not_started',
-				'failure'                => null,
-				'gated_features'         => array(),
-				'pruned_components'      => array(),
-				'runnable_components'    => array(),
-				'inert_components'       => array(),
-				'initialized_components' => array(),
-				'hooked_components'      => array(),
+				PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA( array( PluginKernelTestHookMutatingComp::class ) ),
 			),
-			$kernel->get_boot_report(),
 		);
+
+		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+		$kernel = new PluginKernel( $plugin );
+		$container->set(
+			PluginKernelTestHookMutatingComp::class,
+			new PluginKernelTestHookMutatingComp(
+				static function () use ( $kernel, &$observed ): void {
+					$observed = $kernel->boot_report->status;
+				},
+			),
+		);
+		$kernel->boot();
+
+		self::assertSame( BootStatus::Running, $observed );
+		self::assertSame( BootStatus::Completed, $kernel->boot_report->status );
 	}
 
 	public function test_hook_table_comparison_matches_structure_not_callables_or_order(): void {

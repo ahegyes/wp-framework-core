@@ -24,9 +24,6 @@
     "psr/log": "^3"
   },
 
-  "minimum-stability": "dev",
-  "prefer-stable": true,
-
   "autoload": {
     "psr-4": {
       "DeepWebSolutions\\Framework\\Core\\": "src/"

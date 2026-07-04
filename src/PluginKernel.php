@@ -9,6 +9,8 @@ use DeepWebSolutions\Framework\Core\Feature\Exceptions\FeatureException;
 use DeepWebSolutions\Framework\Core\Feature\FeatureInterface;
 use DeepWebSolutions\Framework\Core\Lifecycle\Hookable\HookableInterface;
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterface;
+use DeepWebSolutions\Framework\Core\ValueObjects\BootStatus;
+use DeepWebSolutions\Framework\Core\ValueObjects\PluginBootReport;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -38,6 +40,23 @@ final class PluginKernel {
 	// region FIELDS AND CONSTANTS
 
 	/**
+	 * Per-phase component lists in their empty, boot-start shape.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     array{gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 */
+	protected const EMPTY_BOOT_METRICS = array(
+		'gated_features'         => array(),
+		'pruned_components'      => array(),
+		'runnable_components'    => array(),
+		'inert_components'       => array(),
+		'initialized_components' => array(),
+		'hooked_components'      => array(),
+	);
+
+	/**
 	 * Whether {@see self::boot()} has already run. Subsequent calls short-circuit.
 	 *
 	 * @since   2.0.0
@@ -48,15 +67,27 @@ final class PluginKernel {
 	protected bool $booted = false;
 
 	/**
-	 * Diagnostic report for the current boot attempt. Seeded from
-	 * {@see self::empty_boot_report()} — the single source of the initial shape.
+	 * Diagnostic report of the current boot attempt. Seeded with the not-started shape,
+	 * swapped for a Running report when boot begins, and replaced at each terminal point
+	 * (blocked, failed, completed).
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     array{status: string, failure: string|null, gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 * @var     PluginBootReport
 	 */
-	protected array $boot_report;
+	public protected(set) PluginBootReport $boot_report;
+
+	/**
+	 * Per-phase component lists accumulated by the current boot attempt, folded into
+	 * {@see self::$boot_report} whenever the report is rebuilt.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     array{gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 */
+	protected array $boot_metrics = self::EMPTY_BOOT_METRICS;
 
 	// endregion
 
@@ -75,7 +106,7 @@ final class PluginKernel {
 		protected readonly PluginInterface $plugin,
 		protected readonly ?LoggerInterface $logger = null,
 	) {
-		$this->boot_report = $this->empty_boot_report();
+		$this->boot_report = new PluginBootReport();
 	}
 
 	// endregion
@@ -129,18 +160,6 @@ final class PluginKernel {
 	}
 
 	/**
-	 * Returns the diagnostic report captured by the current boot attempt.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  array{status: string, failure: string|null, gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
-	 */
-	public function get_boot_report(): array {
-		return $this->boot_report;
-	}
-
-	/**
 	 * Boots the plugin. Runs the installer version check first; if it fails the boot
 	 * stops before any component runs. Otherwise each Feature's conditionals gate it in
 	 * or out, every surviving Feature's component tree is flattened with disabled
@@ -168,9 +187,9 @@ final class PluginKernel {
 		if ( $this->booted ) {
 			return;
 		}
-		$this->booted                = true;
-		$this->boot_report           = $this->empty_boot_report();
-		$this->boot_report['status'] = 'running';
+		$this->booted       = true;
+		$this->boot_metrics = self::EMPTY_BOOT_METRICS;
+		$this->boot_report  = new PluginBootReport( status: BootStatus::Running );
 
 		if ( ! $this->run_installer() ) {
 			return;
@@ -200,7 +219,7 @@ final class PluginKernel {
 				$component = $record['component'];
 				if ( $component instanceof InitializableInterface ) {
 					$component->initialize();
-					$this->boot_report['initialized_components'][] = $record['class'];
+					$this->boot_metrics['initialized_components'][] = $record['class'];
 				}
 			}
 
@@ -213,21 +232,20 @@ final class PluginKernel {
 				}
 			}
 
-			$this->boot_report['hooked_components'] = $hooked;
-			$this->boot_report['status']            = 'completed';
+			$this->boot_metrics['hooked_components'] = $hooked;
+
+			$this->boot_report = $this->build_boot_report( BootStatus::Completed );
 		} catch ( FeatureException $error ) {
 			$this->rollback_hook_table( $snapshot );
-			$this->boot_report['status']  = 'failed';
-			$this->boot_report['failure'] = $this->format_throwable_summary( $error );
+			$this->boot_report = $this->build_boot_report( BootStatus::Failed, $this->format_throwable_summary( $error ) );
 
 			// A duplicate/cyclic component graph or a malformed gate is a deterministic developer error,
 			// not a runtime fault — it propagates so it surfaces in development rather than failing silently.
 			throw $error;
 		} catch ( \Throwable $error ) {
 			$this->rollback_hook_table( $snapshot );
-			$summary                      = $this->format_throwable_summary( $error );
-			$this->boot_report['status']  = 'failed';
-			$this->boot_report['failure'] = $summary;
+			$summary           = $this->format_throwable_summary( $error );
+			$this->boot_report = $this->build_boot_report( BootStatus::Failed, $summary );
 
 			// A missing or throwing container binding (conditional, feature, or component) must not white-screen
 			// every request: fail closed like the installer — log and register nothing for this request.
@@ -274,8 +292,10 @@ final class PluginKernel {
 				$stored_version  = (string) $stored;
 				$current_version = (string) $current;
 
-				$this->boot_report['status']  = 'blocked';
-				$this->boot_report['failure'] = 'Stored plugin version ' . $stored_version . ' is newer than code version ' . $current_version . '.';
+				$this->boot_report = $this->build_boot_report(
+					BootStatus::Blocked,
+					'Stored plugin version ' . $stored_version . ' is newer than code version ' . $current_version . '.',
+				);
 				$this->log(
 					LogLevel::ERROR,
 					'Stored plugin version ' . $stored_version . ' is newer than code version ' . $current_version . '; skipping component boot for this request.',
@@ -288,9 +308,8 @@ final class PluginKernel {
 				return false;
 			}
 		} catch ( \Throwable $error ) {
-			$summary                      = $this->format_throwable_summary( $error );
-			$this->boot_report['status']  = 'blocked';
-			$this->boot_report['failure'] = $summary;
+			$summary           = $this->format_throwable_summary( $error );
+			$this->boot_report = $this->build_boot_report( BootStatus::Blocked, $summary );
 			$this->log(
 				LogLevel::ERROR,
 				'Plugin installation routine failed; skipping component boot for this request. ' . $summary,
@@ -329,7 +348,7 @@ final class PluginKernel {
 			}
 
 			if ( ! $conditional->is_met() ) {
-				$this->boot_report['gated_features'][] = array(
+				$this->boot_metrics['gated_features'][] = array(
 					'feature'     => $feature_class,
 					'conditional' => $conditional_class,
 				);
@@ -442,7 +461,7 @@ final class PluginKernel {
 		$component = $container->get( $component_class );
 
 		if ( ! $this->is_runnable( $component ) ) {
-			$this->boot_report['pruned_components'][] = $component_class;
+			$this->boot_metrics['pruned_components'][] = $component_class;
 			$this->log(
 				LogLevel::DEBUG,
 				'Component gated out as disabled; its subtree is pruned.',
@@ -452,7 +471,7 @@ final class PluginKernel {
 			return;
 		}
 
-		$this->boot_report['runnable_components'][] = $component_class;
+		$this->boot_metrics['runnable_components'][] = $component_class;
 
 		$runnable[] = array(
 			'class'     => $component_class,
@@ -503,7 +522,7 @@ final class PluginKernel {
 				continue;
 			}
 
-			$this->boot_report['inert_components'][] = $record['class'];
+			$this->boot_metrics['inert_components'][] = $record['class'];
 			$this->log(
 				LogLevel::DEBUG,
 				'Component has no kernel lifecycle interface and remains inert during boot.',
@@ -641,23 +660,26 @@ final class PluginKernel {
 	}
 
 	/**
-	 * Returns the initial shape used for each boot report.
+	 * Builds a report from the accumulated boot metrics, the given status, and an optional failure summary.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @return  array{status: string, failure: string|null, gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 * @param   BootStatus  $status  Status of the boot attempt.
+	 * @param   string|null $failure Summary of the blocking or failing cause — a throwable's summary, or the downgrade guard's plain-string message — null when none occurred.
+	 *
+	 * @return  PluginBootReport
 	 */
-	protected function empty_boot_report(): array {
-		return array(
-			'status'                 => 'not_started',
-			'failure'                => null,
-			'gated_features'         => array(),
-			'pruned_components'      => array(),
-			'runnable_components'    => array(),
-			'inert_components'       => array(),
-			'initialized_components' => array(),
-			'hooked_components'      => array(),
+	protected function build_boot_report( BootStatus $status, ?string $failure = null ): PluginBootReport {
+		return new PluginBootReport(
+			status: $status,
+			failure: $failure,
+			gated_features: $this->boot_metrics['gated_features'],
+			pruned_components: $this->boot_metrics['pruned_components'],
+			runnable_components: $this->boot_metrics['runnable_components'],
+			inert_components: $this->boot_metrics['inert_components'],
+			initialized_components: $this->boot_metrics['initialized_components'],
+			hooked_components: $this->boot_metrics['hooked_components'],
 		);
 	}
 
@@ -672,7 +694,7 @@ final class PluginKernel {
 	 * @return  string
 	 */
 	protected function format_throwable_summary( \Throwable $error ): string {
-		$class   = \get_class( $error );
+		$class   = $error::class;
 		$message = $error->getMessage();
 
 		return '' === $message ? $class : $class . ': ' . $message;
