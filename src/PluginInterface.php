@@ -9,8 +9,9 @@ use Psr\Container\ContainerInterface;
 
 /**
  * Consumer-implemented plugin contract. A plugin is a final class implementing
- * this interface, typically as a singleton constructed in the plugin's main
- * .php file with the file path passed to get_instance().
+ * this interface, typically managed as a singleton constructed in the plugin's
+ * main .php file — instance management stays with the consumer; the contract
+ * declares only the accessors the kernel drives.
  *
  * @since   2.0.0
  * @version 2.0.0

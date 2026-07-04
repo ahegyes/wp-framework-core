@@ -12,7 +12,9 @@ use DeepWebSolutions\Framework\Shared\Version\Version;
  */
 interface InstallerInterface {
 	/**
-	 * First-time install. Idempotent.
+	 * First-time install. Idempotent. The kernel runs it on boot when no version is stored;
+	 * on a fresh site the first boot happens on the request after activation, so activate()
+	 * runs a full request before install() ever has.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -75,6 +77,12 @@ interface InstallerInterface {
 
 	/**
 	 * Callback target for register_activation_hook(). When `$network_wide` is true the hook fires once for the whole network, so per-site work must loop get_sites().
+	 *
+	 * On a fresh site this runs a full request BEFORE install(): activation fires in a request
+	 * whose plugins_loaded predates the activation, so the plugins_loaded-deferred boot — and
+	 * with it install() — first runs on the next request. Activation work must not assume
+	 * installed state: get_stored_version() is still null and install-granted capabilities
+	 * are absent.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
