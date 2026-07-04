@@ -1,6 +1,6 @@
 # wp-framework-core
 
-PSR-11-based plugin kernel and lifecycle framework. Interface-driven components, conditional-gated features, a centralized installer, and a boot that initializes every component before registering any hooks.
+PSR-11-based plugin kernel and lifecycle framework. Interface-driven components, conditional-gated features, a centralized installer, and a boot that initializes components before any of them registers hooks.
 
 Part of the [DWS WordPress framework](https://github.com/ahegyes/wordpress-framework) — see the monorepo for architecture, contributing, and the rest of the package set.
 

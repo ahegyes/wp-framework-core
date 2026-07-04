@@ -12,12 +12,15 @@ use DeepWebSolutions\Framework\Core\Lifecycle\Hookable\HookableInterface;
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterface;
 use DeepWebSolutions\Framework\Core\PluginInterface;
 use DeepWebSolutions\Framework\Core\PluginKernel;
+use DeepWebSolutions\Framework\Core\Tests\Support\FakeWordPressHook;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
 use DeepWebSolutions\Framework\Shared\Version\Version;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+
+require_once __DIR__ . '/../Support/wp-hook-stub-functions.php';
 
 #[CoversClass( PluginKernel::class )]
 #[UsesClass( FeatureException::class )]
@@ -109,7 +112,7 @@ final class PluginKernelTest extends TestCase {
 		$plugin = $this->make_plugin( $container, array( PluginKernelTestGatedPassFeature::class ) );
 
 		$this->expectException( FeatureException::class );
-		$this->expectExceptionMessage( PluginKernelTestPassingCond::class );
+		$this->expectExceptionMessage( 'Conditional ' . PluginKernelTestPassingCond::class . ' declared by feature ' . PluginKernelTestGatedPassFeature::class . ' does not implement ' . ConditionalInterface::class . '.' );
 
 		PluginKernel::run( $plugin );
 	}
@@ -233,7 +236,7 @@ final class PluginKernelTest extends TestCase {
 		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
 
 		$this->expectException( FeatureException::class );
-		$this->expectExceptionMessage( PluginKernelTestLeafA::class );
+		$this->expectExceptionMessage( 'Component ' . PluginKernelTestLeafA::class . ' is registered more than once; a component may belong to a single parent.' );
 
 		PluginKernel::run( $plugin );
 	}
@@ -327,6 +330,38 @@ final class PluginKernelTest extends TestCase {
 		self::assertNotContains( PluginKernelTestComp::class, $container->resolved );
 	}
 
+	public function test_newer_stored_version_fails_closed_without_running_update(): void {
+		$log       = new PluginKernelTestLog();
+		$logger    = new PluginKernelTestLogger();
+		$installer = new PluginKernelTestInstaller( Version::from_string( '2.1.0' ), Version::from_string( '2.0.0' ) );
+
+		$container = $this->make_container(
+			array(
+				PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA( array( PluginKernelTestComp::class ) ),
+				PluginKernelTestComp::class     => $this->make_component( 'A', $log ),
+			),
+		);
+
+		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ), $installer );
+		$kernel = PluginKernel::run( $plugin, $logger );
+
+		self::assertSame( array(), $installer->calls );
+		self::assertSame( '2.1.0', $installer->stored?->value );
+		self::assertSame( array(), $log->entries );
+		self::assertNotContains( PluginKernelTestComp::class, $container->resolved );
+		self::assertSame( 'blocked', $kernel->get_boot_report()['status'] );
+		self::assertSame( 'Stored plugin version 2.1.0 is newer than code version 2.0.0.', $kernel->get_boot_report()['failure'] );
+		self::assertSame( 'error', $logger->records[0]['level'] );
+		self::assertSame( 'Stored plugin version 2.1.0 is newer than code version 2.0.0; skipping component boot for this request.', $logger->records[0]['message'] );
+		self::assertSame(
+			array(
+				'stored_version'  => '2.1.0',
+				'current_version' => '2.0.0',
+			),
+			$logger->records[0]['context'],
+		);
+	}
+
 	public function test_logs_each_gated_out_feature(): void {
 		$logger    = new PluginKernelTestLogger();
 		$container = $this->make_container(
@@ -362,6 +397,46 @@ final class PluginKernelTest extends TestCase {
 		self::assertContains( PluginKernelTestComp::class, $components );
 	}
 
+	public function test_boot_report_records_gated_pruned_inert_and_lifecycle_components(): void {
+		$log       = new PluginKernelTestLog();
+		$logger    = new PluginKernelTestLogger();
+		$container = $this->make_container(
+			array(
+				PluginKernelTestFailingCond::class      => new PluginKernelTestFailingCond(),
+				PluginKernelTestGatedFailFeature::class => new PluginKernelTestGatedFailFeature( array( PluginKernelTestCompB::class ) ),
+				PluginKernelTestFeatureA::class         => new PluginKernelTestFeatureA( array( PluginKernelTestComp::class, PluginKernelTestGroup::class ) ),
+				PluginKernelTestComp::class             => new \stdClass(),
+				PluginKernelTestCompB::class            => $this->make_component( 'gated', $log ),
+				PluginKernelTestGroup::class            => new PluginKernelTestGroup( $log ),
+				PluginKernelTestLeafA::class            => $this->make_component( 'leafA', $log, false ),
+				PluginKernelTestLeafB::class            => $this->make_component( 'leafB', $log ),
+			),
+		);
+
+		$plugin = $this->make_plugin( $container, array( PluginKernelTestGatedFailFeature::class, PluginKernelTestFeatureA::class ) );
+		$kernel = PluginKernel::run( $plugin, $logger );
+
+		self::assertSame(
+			array(
+				array(
+					'feature'     => PluginKernelTestGatedFailFeature::class,
+					'conditional' => PluginKernelTestFailingCond::class,
+				),
+			),
+			$kernel->get_boot_report()['gated_features'],
+		);
+		self::assertSame( array( PluginKernelTestLeafA::class ), $kernel->get_boot_report()['pruned_components'] );
+		self::assertSame( array( PluginKernelTestComp::class ), $kernel->get_boot_report()['inert_components'] );
+		self::assertSame( array( PluginKernelTestComp::class, PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['runnable_components'] );
+		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['initialized_components'] );
+		self::assertSame( array( PluginKernelTestGroup::class, PluginKernelTestLeafB::class ), $kernel->get_boot_report()['hooked_components'] );
+		self::assertSame( array( 'group:init', 'leafB:init', 'group:hooks', 'leafB:hooks' ), $log->entries );
+
+		$contexts   = \array_column( $logger->records, 'context' );
+		$components = \array_column( $contexts, 'component' );
+		self::assertContains( PluginKernelTestComp::class, $components );
+	}
+
 	public function test_logs_install_failure_at_error_level(): void {
 		$logger    = new PluginKernelTestLogger();
 		$installer = new PluginKernelTestInstaller( null, Version::from_string( '2.0.0' ) );
@@ -374,6 +449,10 @@ final class PluginKernelTest extends TestCase {
 
 		$levels = \array_column( $logger->records, 'level' );
 		self::assertContains( 'error', $levels );
+		self::assertSame(
+			'Plugin installation routine failed; skipping component boot for this request. ' . \RuntimeException::class . ': install failed',
+			$logger->records[0]['message'],
+		);
 	}
 
 	public function test_throwing_feature_resolution_is_caught_and_halts_component_boot(): void {
@@ -396,10 +475,180 @@ final class PluginKernelTest extends TestCase {
 		self::assertNotContains( PluginKernelTestComp::class, $container->resolved );
 		self::assertCount( 1, $logger->records );
 		self::assertSame( 'error', $logger->records[0]['level'] );
+		self::assertStringContainsString( \RuntimeException::class . ': feature cannot be resolved', $logger->records[0]['message'] );
 
 		$exception = $logger->records[0]['context']['exception'] ?? null;
 		self::assertInstanceOf( \RuntimeException::class, $exception );
 		self::assertSame( 'feature cannot be resolved', $exception->getMessage() );
+	}
+
+	public function test_failing_hook_registration_rolls_back_all_hook_table_changes(): void {
+		$logger        = new PluginKernelTestLogger();
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		$preexisting = static fn ( mixed $value ): mixed => $value;
+		$added_new   = static fn ( mixed $value, mixed $extra = null ): mixed => $value;
+		$added_more  = static fn ( mixed $value ): mixed => $value;
+
+		try {
+			\add_filter( 'existing_hook', $preexisting, 10 );
+			$before = $this->normalized_hook_table();
+
+			$container = $this->make_container(
+				array(
+					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+						array( PluginKernelTestHookMutatingComp::class, PluginKernelTestHookThrowingComp::class ),
+					),
+					PluginKernelTestHookMutatingComp::class => new PluginKernelTestHookMutatingComp(
+						static function () use ( $preexisting, $added_new, $added_more ): void {
+							\add_filter( 'new_hook', $added_new, 10, 2 );
+							\add_filter( 'existing_hook', $added_more, 20 );
+							\remove_filter( 'existing_hook', $preexisting, 10 );
+						},
+					),
+					PluginKernelTestHookThrowingComp::class => new PluginKernelTestHookThrowingComp(),
+				),
+			);
+
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+			$kernel = PluginKernel::run( $plugin, $logger );
+
+			self::assertSame( $before, $this->normalized_hook_table() );
+			self::assertArrayNotHasKey( 'new_hook', $this->normalized_hook_table() );
+			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( 'error', $logger->records[0]['level'] );
+			self::assertSame(
+				'Plugin component boot failed; every hook registered during the attempt (constructor, initialize(), register_hooks()) was rolled back. Non-hook side effects are not transactional. ' . \RuntimeException::class . ': hook registration failed',
+				$logger->records[0]['message'],
+			);
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
+	}
+
+	public function test_failing_initialization_rolls_back_hook_table_changes(): void {
+		$logger        = new PluginKernelTestLogger();
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		$added = static fn ( mixed $value ): mixed => $value;
+
+		try {
+			$before = $this->normalized_hook_table();
+
+			$container = $this->make_container(
+				array(
+					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+						array( PluginKernelTestInitMutatingComp::class, PluginKernelTestInitThrowingComp::class ),
+					),
+					PluginKernelTestInitMutatingComp::class => new PluginKernelTestInitMutatingComp(
+						static function () use ( $added ): void {
+							\add_filter( 'init_added_hook', $added, 10 );
+						},
+					),
+					PluginKernelTestInitThrowingComp::class => new PluginKernelTestInitThrowingComp(),
+				),
+			);
+
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+			$kernel = PluginKernel::run( $plugin, $logger );
+
+			self::assertSame( $before, $this->normalized_hook_table() );
+			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertSame( array(), $kernel->get_boot_report()['hooked_components'] );
+			self::assertSame( 'error', $logger->records[0]['level'] );
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
+	}
+
+	public function test_a_throwing_logger_does_not_escape_a_failed_boot(): void {
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		try {
+			$container = $this->make_container(
+				array(
+					PluginKernelTestFeatureA::class         => new PluginKernelTestFeatureA(
+						array( PluginKernelTestHookThrowingComp::class ),
+					),
+					PluginKernelTestHookThrowingComp::class => new PluginKernelTestHookThrowingComp(),
+				),
+			);
+
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+			$kernel = PluginKernel::run( $plugin, new PluginKernelTestThrowingLogger() );
+
+			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertStringContainsString( 'hook registration failed', (string) $kernel->get_boot_report()['failure'] );
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
+	}
+
+	public function test_rollback_logs_a_residue_left_by_direct_hook_table_manipulation(): void {
+		$logger        = new PluginKernelTestLogger();
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		$direct = static fn ( mixed $value ): mixed => $value;
+
+		$directly_added_hook = new FakeWordPressHook();
+		$directly_added_hook->callbacks[10]['direct_key'] = array(
+			'function'      => $direct,
+			'accepted_args' => 1,
+		);
+
+		try {
+			$container = $this->make_container(
+				array(
+					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+						array( PluginKernelTestHookMutatingComp::class, PluginKernelTestHookThrowingComp::class ),
+					),
+					PluginKernelTestHookMutatingComp::class => new PluginKernelTestHookMutatingComp(
+						static function () use ( $directly_added_hook ): void {
+							$GLOBALS['wp_filter']['direct_hook'] = $directly_added_hook;
+						},
+					),
+					PluginKernelTestHookThrowingComp::class => new PluginKernelTestHookThrowingComp(),
+				),
+			);
+
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+			$kernel = PluginKernel::run( $plugin, $logger );
+
+			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertContains( 'warning', \array_column( $logger->records, 'level' ) );
+			self::assertArrayHasKey( 'direct_key', $directly_added_hook->callbacks[10] );
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
 	}
 
 	public function test_throwing_installer_resolution_is_caught_and_halts_boot(): void {
@@ -438,10 +687,155 @@ final class PluginKernelTest extends TestCase {
 
 		self::assertCount( 1, $logger->records );
 		self::assertSame( 'error', $logger->records[0]['level'] );
+		self::assertStringContainsString( \RuntimeException::class . ': installer cannot be resolved', $logger->records[0]['message'] );
 
 		$exception = $logger->records[0]['context']['exception'] ?? null;
 		self::assertInstanceOf( \RuntimeException::class, $exception );
 		self::assertSame( 'installer cannot be resolved', $exception->getMessage() );
+	}
+
+	public function test_component_graph_failure_rolls_back_hooks_added_during_feature_resolution(): void {
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		try {
+			$before = $this->normalized_hook_table();
+
+			// The feature declares the same component twice, so graph validation throws after the
+			// feature — and the hook its resolution registered — lands inside the transaction window.
+			$container = new class() implements ContainerInterface {
+				public function get( string $id ): mixed {
+					\add_filter( 'feature_resolution_hook', static fn ( mixed $value ): mixed => $value, 10 );
+
+					return new PluginKernelTestFeatureA( array( PluginKernelTestComp::class, PluginKernelTestComp::class ) );
+				}
+
+				public function has( string $id ): bool {
+					return true;
+				}
+			};
+
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+			$kernel = new PluginKernel( $plugin );
+
+			$caught = null;
+			try {
+				$kernel->boot();
+			} catch ( FeatureException $error ) {
+				$caught = $error;
+			}
+
+			self::assertInstanceOf( FeatureException::class, $caught );
+			self::assertSame( $before, $this->normalized_hook_table() );
+			self::assertArrayNotHasKey( 'feature_resolution_hook', $this->normalized_hook_table() );
+			self::assertSame( 'failed', $kernel->get_boot_report()['status'] );
+			self::assertSame(
+				FeatureException::class . ': Component ' . PluginKernelTestComp::class . ' is registered more than once; a component may belong to a single parent.',
+				$kernel->get_boot_report()['failure'],
+			);
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
+	}
+
+	public function test_inert_component_after_a_lifecycle_component_is_still_reported(): void {
+		$log       = new PluginKernelTestLog();
+		$container = $this->make_container(
+			array(
+				PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA( array( PluginKernelTestCompB::class, PluginKernelTestComp::class ) ),
+				PluginKernelTestCompB::class    => $this->make_component( 'B', $log ),
+				PluginKernelTestComp::class     => new \stdClass(),
+			),
+		);
+
+		$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class ) );
+		$kernel = PluginKernel::run( $plugin );
+
+		self::assertSame( array( PluginKernelTestComp::class ), $kernel->get_boot_report()['inert_components'] );
+		self::assertSame( array( 'B:init', 'B:hooks' ), $log->entries );
+	}
+
+	public function test_boot_report_before_boot_has_the_full_not_started_shape(): void {
+		$kernel = new PluginKernel( $this->make_plugin( $this->make_container( array() ), array() ) );
+
+		self::assertSame(
+			array(
+				'status'                 => 'not_started',
+				'failure'                => null,
+				'gated_features'         => array(),
+				'pruned_components'      => array(),
+				'runnable_components'    => array(),
+				'inert_components'       => array(),
+				'initialized_components' => array(),
+				'hooked_components'      => array(),
+			),
+			$kernel->get_boot_report(),
+		);
+	}
+
+	public function test_hook_table_comparison_matches_structure_not_callables_or_order(): void {
+		$kernel = new PluginKernel( $this->make_plugin( $this->make_container( array() ), array() ) );
+		$match  = new \ReflectionMethod( $kernel, 'hook_tables_match' );
+
+		$entry_a = array(
+			'function'      => static fn ( mixed $value ): mixed => $value,
+			'accepted_args' => 1,
+		);
+		$entry_b = array(
+			'function'      => static fn ( mixed $value ): mixed => $value,
+			'accepted_args' => 2,
+		);
+
+		// Same tag/priority/callback-id structure with different callables and accepted_args: a match.
+		self::assertTrue(
+			$match->invoke(
+				$kernel,
+				array( 'tag_one' => array( 10 => array( 'key_a' => $entry_a ) ) ),
+				array( 'tag_one' => array( 10 => array( 'key_a' => $entry_b ) ) ),
+			),
+		);
+
+		// Same registrations with tags and priorities captured in different orders: a match.
+		self::assertTrue(
+			$match->invoke(
+				$kernel,
+				array(
+					'tag_two' => array(
+						20 => array( 'key_b' => $entry_a ),
+						10 => array( 'key_a' => $entry_a ),
+					),
+					'tag_one' => array( 10 => array( 'key_a' => $entry_a ) ),
+				),
+				array(
+					'tag_one' => array( 10 => array( 'key_a' => $entry_a ) ),
+					'tag_two' => array(
+						10 => array( 'key_a' => $entry_a ),
+						20 => array( 'key_b' => $entry_a ),
+					),
+				),
+			),
+		);
+
+		// A registration difference in the second-sorted tag: a mismatch.
+		self::assertFalse(
+			$match->invoke(
+				$kernel,
+				array(
+					'tag_one' => array( 10 => array( 'key_a' => $entry_a ) ),
+					'tag_two' => array( 10 => array( 'key_a' => $entry_a ) ),
+				),
+				array(
+					'tag_one' => array( 10 => array( 'key_a' => $entry_a ) ),
+					'tag_two' => array( 10 => array( 'key_other' => $entry_a ) ),
+				),
+			),
+		);
 	}
 
 	/**
@@ -450,6 +844,22 @@ final class PluginKernelTest extends TestCase {
 	 */
 	private function make_container( array $services, array $throwing = array() ): PluginKernelTestContainer {
 		return new PluginKernelTestContainer( $services, $throwing );
+	}
+
+	/**
+	 * The live hook table reduced to tag => callbacks, tag-order-insensitive, so a
+	 * rolled-back table can be compared byte-for-byte against the pre-window state.
+	 *
+	 * @return array<string, array<int, array<string, array{function: callable, accepted_args: int}>>>
+	 */
+	private function normalized_hook_table(): array {
+		$table = array();
+		foreach ( $GLOBALS['wp_filter'] ?? array() as $tag => $hook ) {
+			$table[ $tag ] = $hook->callbacks;
+		}
+		\ksort( $table );
+
+		return $table;
 	}
 
 	private function make_component( string $name, PluginKernelTestLog $log, bool $enabled = true ): object {
@@ -816,3 +1226,53 @@ final class PluginKernelTestLeafA {}
  * Marker class used as a composite child container key.
  */
 final class PluginKernelTestLeafB {}
+
+/**
+ * Hookable component that runs a configurable hook-table mutation from register_hooks().
+ */
+final class PluginKernelTestHookMutatingComp implements HookableInterface {
+	public function __construct(
+		private \Closure $mutator,
+	) {}
+
+	public function register_hooks(): void {
+		( $this->mutator )();
+	}
+}
+
+final class PluginKernelTestHookThrowingComp implements HookableInterface {
+	public function register_hooks(): void {
+		throw new \RuntimeException( 'hook registration failed' );
+	}
+}
+
+/**
+ * PSR-3 logger whose every record throws, simulating a broken diagnostic sink.
+ */
+final class PluginKernelTestThrowingLogger extends \Psr\Log\AbstractLogger {
+	/**
+	 * @param array<array-key, mixed> $context
+	 */
+	public function log( $level, string|\Stringable $message, array $context = array() ): void {
+		throw new \RuntimeException( 'logger sink failure' );
+	}
+}
+
+/**
+ * Initializable component that runs a configurable hook-table mutation from initialize().
+ */
+final class PluginKernelTestInitMutatingComp implements InitializableInterface {
+	public function __construct(
+		private \Closure $mutator,
+	) {}
+
+	public function initialize(): void {
+		( $this->mutator )();
+	}
+}
+
+final class PluginKernelTestInitThrowingComp implements InitializableInterface {
+	public function initialize(): void {
+		throw new \RuntimeException( 'initialize failed' );
+	}
+}
