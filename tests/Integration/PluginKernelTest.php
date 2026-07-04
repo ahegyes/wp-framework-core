@@ -100,7 +100,7 @@ final class PluginKernelTest extends TestCase {
 
 		$container = new PluginKernelTestFactoryContainer(
 			array(
-				PluginKernelRollbackFeature::class => static fn (): object => new PluginKernelRollbackFeature(
+				PluginKernelRollbackFeature::class       => static fn (): object => new PluginKernelRollbackFeature(
 					array( PluginKernelHookMutatingComponent::class, PluginKernelHookThrowingComponent::class ),
 				),
 				PluginKernelHookMutatingComponent::class => static fn (): object => new PluginKernelHookMutatingComponent(
@@ -168,7 +168,7 @@ final class PluginKernelTest extends TestCase {
 
 		$container = new PluginKernelTestFactoryContainer(
 			array(
-				PluginKernelRollbackFeature::class => static fn (): object => new PluginKernelRollbackFeature(
+				PluginKernelRollbackFeature::class       => static fn (): object => new PluginKernelRollbackFeature(
 					array( PluginKernelCtorAndInitHookComponent::class, PluginKernelInitThrowingComponent::class ),
 				),
 				PluginKernelCtorAndInitHookComponent::class => static fn (): object => new PluginKernelCtorAndInitHookComponent(

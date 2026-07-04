@@ -263,8 +263,8 @@ final class PluginKernelTest extends TestCase {
 
 	public function test_fresh_site_runs_install_then_records_current_version(): void {
 		$installer = new PluginKernelTestInstaller( null, Version::from_string( '2.0.0' ) );
-		$container  = $this->make_container( array() );
-		$plugin     = $this->make_plugin( $container, array(), $installer );
+		$container = $this->make_container( array() );
+		$plugin    = $this->make_plugin( $container, array(), $installer );
 
 		PluginKernel::run( $plugin );
 
@@ -274,8 +274,8 @@ final class PluginKernelTest extends TestCase {
 
 	public function test_older_stored_version_runs_update_then_records_current_version(): void {
 		$installer = new PluginKernelTestInstaller( Version::from_string( '1.4.0' ), Version::from_string( '2.0.0' ) );
-		$container  = $this->make_container( array() );
-		$plugin     = $this->make_plugin( $container, array(), $installer );
+		$container = $this->make_container( array() );
+		$plugin    = $this->make_plugin( $container, array(), $installer );
 
 		PluginKernel::run( $plugin );
 
@@ -285,8 +285,8 @@ final class PluginKernelTest extends TestCase {
 
 	public function test_current_stored_version_runs_neither_install_nor_update(): void {
 		$installer = new PluginKernelTestInstaller( Version::from_string( '2.0.0' ), Version::from_string( '2.0.0' ) );
-		$container  = $this->make_container( array() );
-		$plugin     = $this->make_plugin( $container, array(), $installer );
+		$container = $this->make_container( array() );
+		$plugin    = $this->make_plugin( $container, array(), $installer );
 
 		PluginKernel::run( $plugin );
 
@@ -294,8 +294,8 @@ final class PluginKernelTest extends TestCase {
 	}
 
 	public function test_failed_install_skips_dispatch_and_does_not_record_version(): void {
-		$log       = new PluginKernelTestLog();
-		$installer = new PluginKernelTestInstaller( null, Version::from_string( '2.0.0' ) );
+		$log                         = new PluginKernelTestLog();
+		$installer                   = new PluginKernelTestInstaller( null, Version::from_string( '2.0.0' ) );
 		$installer->throw_on_install = true;
 
 		$container = $this->make_container(
@@ -314,8 +314,8 @@ final class PluginKernelTest extends TestCase {
 	}
 
 	public function test_failed_update_skips_dispatch_and_does_not_record_version(): void {
-		$log       = new PluginKernelTestLog();
-		$installer = new PluginKernelTestInstaller( Version::from_string( '1.4.0' ), Version::from_string( '2.0.0' ) );
+		$log                        = new PluginKernelTestLog();
+		$installer                  = new PluginKernelTestInstaller( Version::from_string( '1.4.0' ), Version::from_string( '2.0.0' ) );
 		$installer->throw_on_update = true;
 
 		$container = $this->make_container(
@@ -502,7 +502,7 @@ final class PluginKernelTest extends TestCase {
 
 			$container = $this->make_container(
 				array(
-					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+					PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA(
 						array( PluginKernelTestHookMutatingComp::class, PluginKernelTestHookThrowingComp::class ),
 					),
 					PluginKernelTestHookMutatingComp::class => new PluginKernelTestHookMutatingComp(
@@ -551,7 +551,7 @@ final class PluginKernelTest extends TestCase {
 
 			$container = $this->make_container(
 				array(
-					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+					PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA(
 						array( PluginKernelTestInitMutatingComp::class, PluginKernelTestInitThrowingComp::class ),
 					),
 					PluginKernelTestInitMutatingComp::class => new PluginKernelTestInitMutatingComp(
@@ -588,7 +588,7 @@ final class PluginKernelTest extends TestCase {
 		try {
 			$container = $this->make_container(
 				array(
-					PluginKernelTestFeatureA::class         => new PluginKernelTestFeatureA(
+					PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA(
 						array( PluginKernelTestHookThrowingComp::class ),
 					),
 					PluginKernelTestHookThrowingComp::class => new PluginKernelTestHookThrowingComp(),
@@ -618,7 +618,7 @@ final class PluginKernelTest extends TestCase {
 
 		$direct = static fn ( mixed $value ): mixed => $value;
 
-		$directly_added_hook = new FakeWordPressHook();
+		$directly_added_hook                              = new FakeWordPressHook();
 		$directly_added_hook->callbacks[10]['direct_key'] = array(
 			'function'      => $direct,
 			'accepted_args' => 1,
@@ -627,7 +627,7 @@ final class PluginKernelTest extends TestCase {
 		try {
 			$container = $this->make_container(
 				array(
-					PluginKernelTestFeatureA::class        => new PluginKernelTestFeatureA(
+					PluginKernelTestFeatureA::class => new PluginKernelTestFeatureA(
 						array( PluginKernelTestHookMutatingComp::class, PluginKernelTestHookThrowingComp::class ),
 					),
 					PluginKernelTestHookMutatingComp::class => new PluginKernelTestHookMutatingComp(
