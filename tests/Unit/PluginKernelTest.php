@@ -13,6 +13,7 @@ use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterfa
 use DeepWebSolutions\Framework\Core\PluginInterface;
 use DeepWebSolutions\Framework\Core\PluginKernel;
 use DeepWebSolutions\Framework\Core\Tests\Support\FakeWordPressHook;
+use DeepWebSolutions\Framework\Core\Tests\Support\NormalizesHookTables;
 use DeepWebSolutions\Framework\Core\ValueObjects\BootStatus;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginBootReport;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
@@ -29,6 +30,8 @@ require_once __DIR__ . '/../Support/wp-hook-stub-functions.php';
 #[UsesClass( PluginBootReport::class )]
 #[UsesClass( Version::class )]
 final class PluginKernelTest extends TestCase {
+	use NormalizesHookTables;
+
 	public function test_initializes_all_components_before_registering_any_hooks(): void {
 		$log = new PluginKernelTestLog();
 
@@ -916,22 +919,6 @@ final class PluginKernelTest extends TestCase {
 	 */
 	private function make_container( array $services, array $throwing = array() ): PluginKernelTestContainer {
 		return new PluginKernelTestContainer( $services, $throwing );
-	}
-
-	/**
-	 * The live hook table reduced to tag => callbacks, tag-order-insensitive, so a
-	 * rolled-back table can be compared byte-for-byte against the pre-window state.
-	 *
-	 * @return array<string, array<int, array<string, array{function: callable, accepted_args: int}>>>
-	 */
-	private function normalized_hook_table(): array {
-		$table = array();
-		foreach ( $GLOBALS['wp_filter'] ?? array() as $tag => $hook ) {
-			$table[ $tag ] = $hook->callbacks;
-		}
-		\ksort( $table );
-
-		return $table;
 	}
 
 	private function make_component( string $name, PluginKernelTestLog $log, bool $enabled = true ): object {

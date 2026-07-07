@@ -9,15 +9,24 @@ use DeepWebSolutions\Framework\Core\Lifecycle\Hookable\HookableInterface;
 use DeepWebSolutions\Framework\Core\Lifecycle\Initializable\InitializableInterface;
 use DeepWebSolutions\Framework\Core\PluginInterface;
 use DeepWebSolutions\Framework\Core\PluginKernel;
+use DeepWebSolutions\Framework\Core\Tests\Support\NormalizesHookTables;
 use DeepWebSolutions\Framework\Core\ValueObjects\BootStatus;
+use DeepWebSolutions\Framework\Core\ValueObjects\PluginBootReport;
 use DeepWebSolutions\Framework\Core\ValueObjects\PluginHeader;
 use DeepWebSolutions\Framework\Shared\Version\Version;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 
 #[CoversClass( PluginKernel::class )]
+#[UsesClass( BootStatus::class )]
+#[UsesClass( PluginBootReport::class )]
+#[UsesClass( PluginHeader::class )]
+#[UsesClass( Version::class )]
 final class PluginKernelTest extends TestCase {
+	use NormalizesHookTables;
+
 	private const VERSION_OPTION = 'dws_test_kernel_version';
 
 	protected function tear_down_option(): void {
@@ -25,11 +34,13 @@ final class PluginKernelTest extends TestCase {
 	}
 
 	protected function setUp(): void {
+		parent::setUp();
 		$this->tear_down_option();
 	}
 
 	protected function tearDown(): void {
 		$this->tear_down_option();
+		parent::tearDown();
 	}
 
 	public function test_register_lifecycle_hooks_invokes_installer_with_network_flag(): void {
@@ -209,22 +220,6 @@ final class PluginKernelTest extends TestCase {
 
 	private function make_option_installer( string $current ): PluginKernelOptionInstaller {
 		return new PluginKernelOptionInstaller( $current, self::VERSION_OPTION );
-	}
-
-	/**
-	 * The live hook table reduced to tag => callbacks, tag-order-insensitive, so a rolled-back
-	 * table can be compared byte-for-byte against the pre-window state.
-	 *
-	 * @return array<string, array<int, array<string, array{function: callable, accepted_args: int}>>>
-	 */
-	private function normalized_hook_table(): array {
-		$table = array();
-		foreach ( $GLOBALS['wp_filter'] as $tag => $hook ) {
-			$table[ $tag ] = $hook->callbacks;
-		}
-		\ksort( $table );
-
-		return $table;
 	}
 
 	/**
