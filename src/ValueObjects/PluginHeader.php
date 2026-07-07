@@ -137,7 +137,7 @@ final readonly class PluginHeader extends AbstractValueObject {
 
 		if ( ! is_valid_identifier( $slug ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- framework-internal exception; never reaches an HTML output context unescaped.
-			throw new InvalidPluginHeaderException( "derived slug '$slug' is not a valid identifier. Use a Text Domain (or plugin directory/file name) of a lowercase letter followed by lowercase a-z, 0-9, _, - so derived hook names and REST namespaces stay well-formed" );
+			throw new InvalidPluginHeaderException( "derived slug '$slug' is not a valid identifier. Use a Text Domain (or plugin directory/file name) of a lowercase letter followed by lowercase a-z, 0-9, _, - so derived hook names and REST namespaces stay well-formed." );
 		}
 
 		$this->slug = $slug;
