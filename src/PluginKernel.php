@@ -27,14 +27,21 @@ use Psr\Log\LogLevel;
  * declares its children but never dispatches them itself, which keeps the parent-off ⇒
  * subtree-off guarantee enforced in one place.
  *
- * The whole component phase runs inside a hook-table transaction: a failed boot unwinds
- * every hook registered inside the window through WordPress's own API, restoring the
- * registrations that stood when the phase began. The guarantee covers registrations made
- * through the WordPress hook API; a residue left by direct hook-table manipulation is
- * detected after rollback and logged rather than force-removed.
+ * The whole component phase runs inside a hook-table transaction: WordPress's hook
+ * table is snapshotted before any Feature or component is constructed, and any failure
+ * in the phase — resolution, initialization, or hook registration — unwinds the table
+ * through WordPress's own API to its window-start state, so no hook registered through
+ * the WordPress hook API by any phase of a failed boot survives (constructor,
+ * initialize(), register_hooks()). Hook-table mutations third-party code made
+ * synchronously inside the window are unwound with them; $wp_current_filter,
+ * $wp_actions, and non-hook side effects (options writes, post-type registration, …)
+ * are not transactional. A residue left by direct hook-table manipulation is detected
+ * after rollback and logged rather than force-removed.
  *
  * @since   2.0.0
  * @version 2.0.0
+ *
+ * @phpstan-type BootMetrics array{gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
  */
 final class PluginKernel {
 	// region FIELDS AND CONSTANTS
@@ -45,7 +52,7 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     array{gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 * @var     BootMetrics
 	 */
 	protected const EMPTY_BOOT_METRICS = array(
 		'gated_features'         => array(),
@@ -85,7 +92,7 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     array{gated_features: list<array{feature: class-string<FeatureInterface>, conditional: class-string<ConditionalInterface>}>, pruned_components: list<class-string>, runnable_components: list<class-string>, inert_components: list<class-string>, initialized_components: list<class-string>, hooked_components: list<class-string>}
+	 * @var     BootMetrics
 	 */
 	protected array $boot_metrics = self::EMPTY_BOOT_METRICS;
 
@@ -167,21 +174,15 @@ final class PluginKernel {
 	 * hookable one registers hooks, so a hook callback may safely reach a peer in
 	 * another Feature.
 	 *
-	 * The whole component phase is a hook-table transaction: WordPress's hook table is
-	 * snapshotted before any Feature or component is constructed, and any failure in the
-	 * phase — resolution, initialization, or hook registration — unwinds the table to its
-	 * window-start state, so no hook registered through the WordPress hook API by any phase
-	 * of a failed boot survives (constructor, initialize(), register_hooks()). Hook-table mutations third-party code
-	 * made synchronously inside the window are unwound with it; $wp_current_filter,
-	 * $wp_actions, and non-hook side effects (options writes, post-type registration, …)
-	 * are not transactional. A failure resolving or running a component fails closed — it
-	 * is logged and the request registers nothing — except a malformed component graph,
-	 * which propagates so the developer error surfaces rather than passing silently.
+	 * The component phase runs inside the hook-table transaction described on the class.
+	 * A failure resolving or running a component fails closed — it is logged and the
+	 * request registers nothing — except a malformed component graph, which propagates so
+	 * the developer error surfaces rather than passing silently.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @throws  FeatureException When the declared component graph is malformed: a duplicate or cyclic component, or a declared gate that is not a ConditionalInterface.
+	 * @throws  FeatureException When the declared component graph is malformed: a duplicate or cyclic component, a declared Feature that is not a FeatureInterface, or a declared gate that is not a ConditionalInterface.
 	 */
 	public function boot(): void {
 		if ( $this->booted ) {
@@ -204,6 +205,11 @@ final class PluginKernel {
 
 			$surviving_features = array();
 			foreach ( $this->plugin->get_feature_classes() as $feature_class ) {
+				if ( ! \is_a( $feature_class, FeatureInterface::class, true ) ) {
+					// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- framework-internal exception; never reaches an HTML output context unescaped.
+					throw new FeatureException( 'Feature ' . $feature_class . ' does not implement ' . FeatureInterface::class . '.' );
+				}
+
 				if ( $this->are_conditionals_met( $feature_class, $container ) ) {
 					/** @var FeatureInterface $feature */ // phpcs:ignore Generic.Commenting.DocComment.MissingShort -- inline @var type assertion, no description applies.
 					$feature              = $container->get( $feature_class );
@@ -239,8 +245,8 @@ final class PluginKernel {
 			$this->rollback_hook_table( $snapshot );
 			$this->boot_report = $this->build_boot_report( BootStatus::Failed, $this->format_throwable_summary( $error ) );
 
-			// A duplicate/cyclic component graph or a malformed gate is a deterministic developer error,
-			// not a runtime fault — it propagates so it surfaces in development rather than failing silently.
+			// A duplicate/cyclic component graph or a malformed Feature or gate declaration is a deterministic
+			// developer error, not a runtime fault — it propagates so it surfaces in development rather than failing silently.
 			throw $error;
 		} catch ( \Throwable $error ) {
 			$this->rollback_hook_table( $snapshot );
@@ -561,11 +567,9 @@ final class PluginKernel {
 	 * iterations), so live WP_Hook internals are never manipulated directly; a tag the
 	 * unwind empties is recreated by WordPress as a fresh registry object. A changed
 	 * priority bucket is rebuilt in snapshot order, so restored callbacks keep their
-	 * original execution order. The restore is scoped to registrations made through the
-	 * WordPress hook API: mutations third-party code made synchronously inside the window
-	 * are unwound with them, while $wp_current_filter, $wp_actions, and non-hook side
-	 * effects stay untouched. A residue left by direct hook-table manipulation cannot be
-	 * removed through the API and is logged instead.
+	 * original execution order. The restore's scope is the transaction guarantee described
+	 * on the class. A residue left by direct hook-table manipulation cannot be removed
+	 * through the API and is logged instead.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

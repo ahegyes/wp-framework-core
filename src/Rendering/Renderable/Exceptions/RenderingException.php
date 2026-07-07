@@ -5,7 +5,8 @@ namespace DeepWebSolutions\Framework\Core\Rendering\Renderable\Exceptions;
 use DeepWebSolutions\Framework\Shared\Exception\AbstractRuntimeException;
 
 /**
- * Thrown when a Renderable component's render() fails unrecoverably.
+ * Thrown by {@see \DeepWebSolutions\Framework\Core\Rendering\Renderable\RenderableInterface::render()}
+ * implementations when rendering fails unrecoverably.
  *
  * @since   2.0.0
  * @version 2.0.0

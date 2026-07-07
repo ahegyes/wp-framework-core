@@ -6,7 +6,7 @@ use DeepWebSolutions\Framework\Core\Conditional\ConditionalInterface;
 use DeepWebSolutions\Framework\Core\Feature\FeatureInterface;
 
 /**
- * Diagnostic report of a plugin boot attempt: the attempt's status, an optional failure
+ * Descriptor for a plugin boot attempt: the attempt's status, an optional failure
  * summary, and the per-phase component lists the kernel records. The constructor defaults
  * are the not-started shape a kernel exposes before its first boot.
  *

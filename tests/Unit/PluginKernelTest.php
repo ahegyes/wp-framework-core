@@ -747,6 +747,55 @@ final class PluginKernelTest extends TestCase {
 		}
 	}
 
+	public function test_declared_non_feature_class_throws_and_rolls_back_hooks_added_during_feature_resolution(): void {
+		$had_wp_filter = \array_key_exists( 'wp_filter', $GLOBALS );
+		$prior_filter  = $GLOBALS['wp_filter'] ?? null;
+
+		$GLOBALS['wp_filter'] = array();
+
+		try {
+			$before = $this->normalized_hook_table();
+
+			// The second declared "feature" is a plain marker class, so the malformed-Feature guard
+			// throws after the first feature — and the hook its resolution registered — lands inside
+			// the transaction window.
+			$container = new class() implements ContainerInterface {
+				public function get( string $id ): mixed {
+					\add_filter( 'feature_resolution_hook', static fn ( mixed $value ): mixed => $value, 10 );
+
+					return new PluginKernelTestFeatureA( array() );
+				}
+
+				public function has( string $id ): bool {
+					return true;
+				}
+			};
+
+			// @phpstan-ignore argument.type (the malformed feature list is the point of the test)
+			$plugin = $this->make_plugin( $container, array( PluginKernelTestFeatureA::class, PluginKernelTestComp::class ) );
+			$kernel = new PluginKernel( $plugin );
+
+			$caught = null;
+			try {
+				$kernel->boot();
+			} catch ( FeatureException $error ) {
+				$caught = $error;
+			}
+
+			self::assertInstanceOf( FeatureException::class, $caught );
+			self::assertSame( 'Feature ' . PluginKernelTestComp::class . ' does not implement ' . FeatureInterface::class . '.', $caught->getMessage() );
+			self::assertSame( $before, $this->normalized_hook_table() );
+			self::assertArrayNotHasKey( 'feature_resolution_hook', $this->normalized_hook_table() );
+			self::assertSame( BootStatus::Failed, $kernel->boot_report->status );
+		} finally {
+			if ( $had_wp_filter ) {
+				$GLOBALS['wp_filter'] = $prior_filter;
+			} else {
+				unset( $GLOBALS['wp_filter'] );
+			}
+		}
+	}
+
 	public function test_inert_component_after_a_lifecycle_component_is_still_reported(): void {
 		$log       = new PluginKernelTestLog();
 		$container = $this->make_container(

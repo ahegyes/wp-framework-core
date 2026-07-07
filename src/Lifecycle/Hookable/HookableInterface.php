@@ -17,6 +17,8 @@ interface HookableInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @throws  Exceptions\HookRegistrationException On unrecoverable hook registration failure.
 	 */
 	public function register_hooks(): void;
 }

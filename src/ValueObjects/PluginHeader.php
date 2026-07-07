@@ -2,9 +2,11 @@
 
 namespace DeepWebSolutions\Framework\Core\ValueObjects;
 
+use DeepWebSolutions\Framework\Core\ValueObjects\Exceptions\InvalidPluginHeaderException;
 use DeepWebSolutions\Framework\Shared\ValueObject\AbstractValueObject;
 
 use function DeepWebSolutions\Framework\Bootstrap\Plugin\get_plugin_metadata;
+use function DeepWebSolutions\Framework\Shared\Identifier\is_valid_identifier;
 
 /**
  * Value object wrapping the WP plugin file header, read once and typed.
@@ -110,6 +112,8 @@ final readonly class PluginHeader extends AbstractValueObject {
 	 * @version 2.0.0
 	 *
 	 * @param   string $file_path Absolute path to the plugin's main PHP file; must live under `WP_PLUGIN_DIR` for round-trip via `plugin_basename()` to succeed.
+	 *
+	 * @throws  InvalidPluginHeaderException If the derived slug is not a valid identifier.
 	 */
 	public function __construct(
 		public string $file_path
@@ -124,12 +128,19 @@ final readonly class PluginHeader extends AbstractValueObject {
 		$this->requires_php      = $data['RequiresPHP'] ?? '';
 		$this->network           = $data['Network'] ?? false;
 
-		$directory  = \dirname( $basename );
-		$this->slug = match ( true ) {
+		$directory = \dirname( $basename );
+		$slug      = match ( true ) {
 			'' !== $this->text_domain => $this->text_domain,
 			'.' !== $directory        => $directory,
 			default                   => \pathinfo( $basename, PATHINFO_FILENAME ),
 		};
+
+		if ( ! is_valid_identifier( $slug ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- framework-internal exception; never reaches an HTML output context unescaped.
+			throw new InvalidPluginHeaderException( "derived slug '$slug' is not a valid identifier. Use a Text Domain (or plugin directory/file name) of a lowercase letter followed by lowercase a-z, 0-9, _, - so derived hook names and REST namespaces stay well-formed" );
+		}
+
+		$this->slug = $slug;
 	}
 
 	// endregion
