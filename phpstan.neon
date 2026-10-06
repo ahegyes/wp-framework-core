@@ -1,8 +1,0 @@
-includes:
-    - ../../vendor/ahegyes/wordpress-configs/php/quality-assurance/phpstan.dist.neon
-
-parameters:
-    paths:
-        - functions.php
-        - src
-        - tests
