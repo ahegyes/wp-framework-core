@@ -1,0 +1,19 @@
+{
+  "name": "ahegyes/wp-framework-core",
+  "description": "Plugin kernel for WordPress: a gated component tree on a PSR-11 container, a boot error boundary, migrations and admin notices.",
+  "type": "library",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/ahegyes/wordpress-framework",
+  "require": {
+    "php": ">=8.5",
+    "ahegyes/wp-framework-shared": "^2.0",
+    "psr/container": "^2",
+    "psr/log": "^3"
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-trunk": "2.x-dev"
+    },
+    "requires-wp": "7.1"
+  }
+}
