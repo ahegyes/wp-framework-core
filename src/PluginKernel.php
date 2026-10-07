@@ -120,7 +120,7 @@ final class PluginKernel {
 
 			$component = $this->container->get( $class );
 			if ( ! $component instanceof $class ) {
-				throw new LogicException( "The container entry '$class' is not an instance of that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+				throw new LogicException( "The container entry '$class' has type '" . \get_debug_type( $component ) . "', not that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 			}
 
 			$components[]     = $component;

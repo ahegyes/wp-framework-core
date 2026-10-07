@@ -34,7 +34,7 @@ if ( ! \defined( 'ABSPATH' ) ) {
 function container_get( ContainerInterface $container, string $class_name ): object {
 	$entry = $container->get( $class_name );
 	if ( ! $entry instanceof $class_name ) {
-		throw new LogicException( "The container entry '$class_name' is not an instance of that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		throw new LogicException( "The container entry '$class_name' has type '" . \get_debug_type( $entry ) . "', not that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 	}
 
 	return $entry;
