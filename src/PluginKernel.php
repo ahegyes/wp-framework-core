@@ -118,7 +118,12 @@ final class PluginKernel {
 				continue;
 			}
 
-			$components[]     = container_get( $this->container, $class );
+			$component = $this->container->get( $class );
+			if ( ! $component instanceof $class ) {
+				throw new LogicException( "The container entry '$class' is not an instance of that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			}
+
+			$components[]     = $component;
 			$this->resolved[] = $class;
 			if ( \is_a( $class, CompositeComponentInterface::class, true ) ) {
 				// The declared class names the children, so no runtime state can add an unvisited node.
