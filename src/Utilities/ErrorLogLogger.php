@@ -2,9 +2,9 @@
 
 namespace DeepWebSolutions\Framework\Utilities;
 
-use Psr\Log\AbstractLogger;
-use Psr\Log\InvalidArgumentException;
-use Psr\Log\LogLevel;
+use Psr\Log\AbstractLogger as PsrAbstractLogger;
+use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
+use Psr\Log\LogLevel as PsrLogLevel;
 
 use function DeepWebSolutions\Framework\Shared\interpolate_log_message;
 
@@ -16,7 +16,7 @@ use function DeepWebSolutions\Framework\Shared\interpolate_log_message;
  * @since   2.0.0
  * @version 2.0.0
  */
-final class ErrorLogLogger extends AbstractLogger {
+final class ErrorLogLogger extends PsrAbstractLogger {
 	// region FIELDS AND CONSTANTS
 
 	/**
@@ -27,7 +27,7 @@ final class ErrorLogLogger extends AbstractLogger {
 	 *
 	 * @var     list<string>
 	 */
-	protected const array DEBUG_LEVELS = array( LogLevel::NOTICE, LogLevel::INFO, LogLevel::DEBUG );
+	protected const array DEBUG_LEVELS = array( PsrLogLevel::NOTICE, PsrLogLevel::INFO, PsrLogLevel::DEBUG );
 
 	/**
 	 * The levels written in every environment.
@@ -37,7 +37,7 @@ final class ErrorLogLogger extends AbstractLogger {
 	 *
 	 * @var     list<string>
 	 */
-	protected const array SEVERE_LEVELS = array( LogLevel::EMERGENCY, LogLevel::ALERT, LogLevel::CRITICAL, LogLevel::ERROR, LogLevel::WARNING );
+	protected const array SEVERE_LEVELS = array( PsrLogLevel::EMERGENCY, PsrLogLevel::ALERT, PsrLogLevel::CRITICAL, PsrLogLevel::ERROR, PsrLogLevel::WARNING );
 
 	// endregion
 
@@ -51,11 +51,11 @@ final class ErrorLogLogger extends AbstractLogger {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   mixed              $level   The record's level, one of the LogLevel constants.
+	 * @param   mixed              $level   The record's level, one of the PsrLogLevel constants.
 	 * @param   string|\Stringable $message The message, with placeholders.
 	 * @param   array<mixed>       $context The values to interpolate.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the level is not a PSR-3 level.
+	 * @throws  PsrInvalidArgumentException Thrown when the level is not a PSR-3 level.
 	 */
 	#[\Override]
 	public function log( mixed $level, string|\Stringable $message, array $context = array() ): void {
@@ -64,7 +64,7 @@ final class ErrorLogLogger extends AbstractLogger {
 				return;
 			}
 		} elseif ( ! \in_array( $level, self::SEVERE_LEVELS, true ) ) {
-			throw new InvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new PsrInvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		\error_log( "[$level] " . interpolate_log_message( (string) $message, $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.

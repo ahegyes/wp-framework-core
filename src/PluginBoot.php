@@ -2,7 +2,7 @@
 
 namespace DeepWebSolutions\Framework;
 
-use Psr\Log\LoggerInterface;
+use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -35,14 +35,14 @@ final class PluginBoot {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string          $plugin_file The path to the plugin's entry file.
-	 * @param   string          $hook_prefix The prefix of the plugin's hook names.
-	 * @param   LoggerInterface $logger      The logger that records boot failures.
+	 * @param   string             $plugin_file The path to the plugin's entry file.
+	 * @param   string             $hook_prefix The prefix of the plugin's hook names.
+	 * @param   PsrLoggerInterface $logger      The logger that records boot failures.
 	 */
 	public function __construct(
 		protected string $plugin_file,
 		protected string $hook_prefix,
-		protected LoggerInterface $logger
+		protected PsrLoggerInterface $logger
 	) {}
 
 	// endregion

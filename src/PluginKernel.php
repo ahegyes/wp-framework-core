@@ -3,7 +3,7 @@
 namespace DeepWebSolutions\Framework;
 
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
-use Psr\Container\ContainerInterface;
+use Psr\Container\ContainerInterface as PsrContainerInterface;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -58,10 +58,10 @@ final class PluginKernel {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   ContainerInterface $container The container that builds each component.
+	 * @param   PsrContainerInterface $container The container that builds each component.
 	 */
 	public function __construct(
-		protected ContainerInterface $container
+		protected PsrContainerInterface $container
 	) {}
 
 	// endregion
