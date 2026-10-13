@@ -67,7 +67,7 @@ final class NoticeQueue implements ComponentInterface {
 			'dismissible' => $dismissible,
 		);
 
-		\update_user_option( $user_id, $this->key, $queue );
+		\update_user_option( $user_id, $this->key, \wp_slash( $queue ) );
 	}
 
 	// endregion
@@ -102,7 +102,7 @@ final class NoticeQueue implements ComponentInterface {
 		if ( array() === $remaining ) {
 			\delete_user_option( $user_id, $this->key );
 		} else {
-			\update_user_option( $user_id, $this->key, $remaining );
+			\update_user_option( $user_id, $this->key, \wp_slash( $remaining ) );
 		}
 	}
 
