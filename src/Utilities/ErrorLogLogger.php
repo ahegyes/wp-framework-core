@@ -53,7 +53,7 @@ final class ErrorLogLogger extends PsrAbstractLogger {
 	 *
 	 * @param   mixed              $level   The record's level, one of the PsrLogLevel constants.
 	 * @param   string|\Stringable $message The message, with placeholders.
-	 * @param   array<mixed>       $context The values to interpolate.
+	 * @param   array<mixed>       $context The values to interpolate, and any Throwable to write after the message under the exception key.
 	 *
 	 * @throws  PsrInvalidArgumentException Thrown when the level is not a PSR-3 level.
 	 */
@@ -67,7 +67,13 @@ final class ErrorLogLogger extends PsrAbstractLogger {
 			throw new PsrInvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		\error_log( "[$level] " . interpolate_log_message( (string) $message, $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
+		$record    = "[$level] " . interpolate_log_message( (string) $message, $context );
+		$exception = $context['exception'] ?? null;
+		if ( $exception instanceof \Throwable ) {
+			$record .= "\n$exception";
+		}
+
+		\error_log( $record ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
 		\do_action( "qm/$level", $message, $context );
 	}
 
