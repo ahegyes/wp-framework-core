@@ -16,7 +16,7 @@ final class PluginBoot {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The outcome of the composition, blocked meaning that it reported an unmet requirement.
+	 * The outcome of the composition, where blocked means that it reported an unmet requirement.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -59,7 +59,7 @@ final class PluginBoot {
 	 *
 	 * @param   \Closure(): bool $compose The composition, which builds the plugin, boots its kernel and returns false after reporting an unmet requirement.
 	 *
-	 * @throws  \Throwable Thrown in local and development environments when the composition fails, after the failure action fired.
+	 * @throws  \Throwable Thrown when the composition fails in a local or development environment, after the failure action fired.
 	 */
 	public function run( \Closure $compose ): void {
 		try {
