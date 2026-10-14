@@ -41,12 +41,28 @@ final class ErrorLogLogger extends PsrAbstractLogger {
 
 	// endregion
 
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $channel The name that identifies the plugin in every record.
+	 */
+	public function __construct(
+		protected string $channel
+	) {}
+
+	// endregion
+
 	// region INHERITED METHODS
 
 	/**
 	 * Writes a record to the PHP error log and fires Query Monitor's action for its level.
 	 *
-	 * Records below warning are written only under WP_DEBUG.
+	 * Records below warning are dropped unless WP_DEBUG is on.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -67,7 +83,7 @@ final class ErrorLogLogger extends PsrAbstractLogger {
 			throw new PsrInvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$record    = "[$level] " . interpolate_log_message( (string) $message, $context );
+		$record    = "[$this->channel.$level] " . interpolate_log_message( (string) $message, $context );
 		$exception = $context['exception'] ?? null;
 		if ( $exception instanceof \Throwable ) {
 			$record .= "\n$exception";
