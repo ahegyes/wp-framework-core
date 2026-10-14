@@ -68,6 +68,15 @@ final class PluginBoot {
 			$this->status = 'failed';
 			$this->log_failure( $exception );
 			\add_action( 'all_admin_notices', array( $this, 'render_failure_notice' ) );
+
+			/**
+			 * Fires when the plugin's composition throws, before the throwable is rethrown in local and development environments.
+			 *
+			 * @since   2.0.0
+			 * @version 2.0.0
+			 *
+			 * @param   \Throwable $exception The failure that stopped the composition.
+			 */
 			\do_action( "{$this->hook_prefix}_initialization_failure", $exception );
 			if ( \in_array( \wp_get_environment_type(), array( 'local', 'development' ), true ) ) {
 				throw $exception;
@@ -78,11 +87,25 @@ final class PluginBoot {
 
 		if ( ! $composed ) {
 			$this->status = 'blocked';
-			\do_action( "{$this->hook_prefix}_initialization_failure", null );
+
+			/**
+			 * Fires when the plugin's composition stops at an unmet requirement.
+			 *
+			 * @since   2.0.0
+			 * @version 2.0.0
+			 */
+			\do_action( "{$this->hook_prefix}_initialization_blocked" );
 			return;
 		}
 
 		$this->status = 'booted';
+
+		/**
+		 * Fires when the plugin's composition completed.
+		 *
+		 * @since   2.0.0
+		 * @version 2.0.0
+		 */
 		\do_action( "{$this->hook_prefix}_initialized" );
 	}
 
