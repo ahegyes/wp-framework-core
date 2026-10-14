@@ -114,7 +114,7 @@ final class PluginBoot {
 	// region HOOKS
 
 	/**
-	 * Tells users who can activate plugins that the plugin could not start.
+	 * Tells users who can activate plugins that the plugin could not finish starting.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -127,7 +127,7 @@ final class PluginBoot {
 		\wp_admin_notice(
 			\sprintf(
 				/* translators: %s: The plugin's name. */
-				\esc_html__( '%s could not start, so its features are off. The error has been logged.', 'wp-framework' ),
+				\esc_html__( '%s could not finish starting, so its features may be unavailable. The error has been logged.', 'wp-framework' ),
 				\esc_html( \get_plugin_data( $this->plugin_file, false )['Name'] )
 			),
 			array( 'type' => 'error' )
@@ -156,7 +156,7 @@ final class PluginBoot {
 
 		\set_transient( $key, 1, HOUR_IN_SECONDS );
 		$this->logger->error(
-			'Boot failed; the plugin is off: {message}',
+			'Boot failed; the plugin did not finish starting: {message}',
 			array(
 				'message'   => $exception->getMessage(),
 				'exception' => $exception,
