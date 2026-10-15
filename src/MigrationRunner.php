@@ -7,6 +7,8 @@ use DeepWebSolutions\Framework\Scheduling\SchedulerInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
+use DeepWebSolutions\Framework\Storage\OptionRow;
+use DeepWebSolutions\Framework\Storage\OptionRows;
 use DeepWebSolutions\Framework\Utilities\SystemClock;
 use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
@@ -40,14 +42,14 @@ final class MigrationRunner implements ComponentInterface {
 	protected const int LOCK_TTL = 600;
 
 	/**
-	 * The database connection that reads and writes the lock and the stored revision.
+	 * The option rows that hold the lock and the stored revision, read past the options cache.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     \wpdb
+	 * @var     OptionRows
 	 */
-	protected \wpdb $wpdb;
+	protected OptionRows $rows;
 
 	/**
 	 * The clock that the lock and the batch budget read.
@@ -60,14 +62,14 @@ final class MigrationRunner implements ComponentInterface {
 	protected PsrClockInterface $clock;
 
 	/**
-	 * The timestamp that this run's lock row holds, or 0 without a lock.
+	 * The lock row as this run wrote it, or null without a lock.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     int
+	 * @var     OptionRow|null
 	 */
-	protected int $locked_at = 0;
+	protected ?OptionRow $lock = null;
 
 	/**
 	 * Whether this run took its lock over from a run that held it too long.
@@ -126,12 +128,7 @@ final class MigrationRunner implements ComponentInterface {
 			throw new InvalidArgumentException( "Batch time limit '$batch_time_limit' is outside 1 to 300 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$wpdb ??= $GLOBALS['wpdb'] ?? null;
-		if ( ! $wpdb instanceof \wpdb ) {
-			throw new LogicException( 'The migration runner needs a wpdb connection.' );
-		}
-
-		$this->wpdb  = $wpdb;
+		$this->rows  = new OptionRows( $wpdb );
 		$this->clock = $clock ?? new SystemClock();
 	}
 
@@ -347,23 +344,25 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  bool
 	 */
 	protected function lock(): bool {
-		$wpdb            = $this->wpdb;
-		$this->locked_at = $this->clock->now()->getTimestamp();
+		$now             = $this->clock->now()->getTimestamp();
 		$this->took_over = false;
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery -- The lock must bypass the options cache.
-		$taken = $wpdb->query( $wpdb->prepare( 'INSERT IGNORE INTO %i (option_name, option_value, autoload) VALUES (%s, %d, %s)', $wpdb->options, $this->get_lock_name(), $this->locked_at, 'off' ) ?? '' );
-		if ( 0 === $taken ) {
-			$taken           = $wpdb->query( $wpdb->prepare( 'UPDATE %i SET option_value = %d WHERE option_name = %s AND option_value < %d', $wpdb->options, $this->locked_at, $this->get_lock_name(), $this->locked_at - self::LOCK_TTL ) ?? '' );
-			$this->took_over = 1 === $taken;
+		try {
+			$this->lock = $this->rows->insert( $this->get_lock_name(), $now );
+			if ( \is_null( $this->lock ) ) {
+				// A lock row that holds no timestamp counts as expired, so a corrupt row never blocks the migrations.
+				$held = $this->rows->get( $this->get_lock_name() );
+				if ( ! \is_null( $held ) && ( parse_int( $held->raw ) ?? 0 ) < $now - self::LOCK_TTL ) {
+					$this->lock      = $this->rows->replace( $held, $now );
+					$this->took_over = ! \is_null( $this->lock );
+				}
+			}
+		} catch ( RuntimeException $exception ) {
+			$this->lock = null;
+			$this->log( 'warning', 'Could not take the data migration lock: {error}', array( 'error' => $exception->getMessage() ) );
 		}
-		// phpcs:enable WordPress.DB.DirectDatabaseQuery
 
-		if ( false === $taken ) {
-			$this->log( 'warning', 'Could not take the data migration lock: {error}', array( 'error' => $wpdb->last_error ) );
-		}
-
-		return 1 === $taken;
+		return ! \is_null( $this->lock );
 	}
 
 	/**
@@ -377,9 +376,13 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  bool
 	 */
 	protected function holds_lock( int $revision ): bool {
-		$wpdb = $this->wpdb;
-		$held = $wpdb->get_var( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $this->get_lock_name() ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The lock must bypass the options cache.
-		if ( (string) $this->locked_at === $held ) {
+		try {
+			$held = $this->rows->get( $this->get_lock_name() );
+		} catch ( RuntimeException ) {
+			$held = null;
+		}
+
+		if ( ! \is_null( $held ) && $held->raw === $this->lock?->raw ) {
 			return true;
 		}
 
@@ -389,20 +392,21 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Deletes the lock row only while it still holds this run's timestamp, so that a takeover's lock survives.
+	 * Deletes the lock row only while it still holds this run's timestamp, so that a takeover's lock survives, and logs a warning when the delete fails, which leaves the lock to expire.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 */
 	protected function unlock(): void {
-		$this->wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The lock must bypass the options cache.
-			$this->wpdb->options,
-			array(
-				'option_name'  => $this->get_lock_name(),
-				'option_value' => (string) $this->locked_at,
-			)
-		);
-		$this->locked_at = 0;
+		try {
+			if ( ! \is_null( $this->lock ) ) {
+				$this->rows->delete( $this->lock );
+			}
+		} catch ( RuntimeException $exception ) {
+			$this->log( 'warning', 'Could not release the data migration lock, which expires in 10 minutes: {error}', array( 'error' => $exception->getMessage() ) );
+		}
+
+		$this->lock = null;
 	}
 
 	/**
@@ -433,19 +437,17 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  int<0, max>|null
 	 */
 	protected function read_revision(): ?int {
-		// A row rather than a single value, because wpdb::get_var() returns null for an empty string as it does for a missing row.
-		$wpdb = $this->wpdb;
-		$row  = $wpdb->get_row( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $this->option ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A cached value may predate another request's checkpoint.
-		if ( '' !== $wpdb->last_error ) {
-			throw new RuntimeException( "Could not read the stored data revision: $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		try {
+			$row = $this->rows->get( $this->option );
+		} catch ( RuntimeException $exception ) {
+			throw new RuntimeException( "Could not read the stored data revision: {$exception->getMessage()}", 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		if ( ! \is_array( $row ) ) {
+		if ( \is_null( $row ) ) {
 			return null;
 		}
 
-		$value = isset( $row['option_value'] ) && \is_string( $row['option_value'] ) ? $row['option_value'] : '';
-
+		$value    = $row->raw;
 		$revision = parse_int( $value );
 		if ( \is_null( $revision ) || $revision < 0 ) {
 			throw new RuntimeException( "The stored data revision '$value' is not a non-negative integer." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
