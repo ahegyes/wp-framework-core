@@ -20,6 +20,16 @@ final class MetaRows {
 	// region FIELDS AND CONSTANTS
 
 	/**
+	 * The length of the meta_key column, past which the database truncates a key onto another key's without an error.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     int
+	 */
+	protected const int MAX_KEY_LENGTH = 255;
+
+	/**
 	 * The database connection.
 	 *
 	 * @since   2.0.0
@@ -106,12 +116,16 @@ final class MetaRows {
 	 * @param   string $key       The meta key.
 	 * @param   mixed  $value     The value: a scalar, null, or an array of them.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the value holds anything but scalars, null and arrays.
+	 * @throws  InvalidArgumentException Thrown when the key is longer than 255 characters or the value holds anything but scalars, null and arrays.
 	 * @throws  RuntimeException         Thrown when the row is not added.
 	 *
 	 * @return  MetaRow
 	 */
 	public function add( int $object_id, string $key, mixed $value ): MetaRow {
+		if ( \mb_strlen( $key ) > self::MAX_KEY_LENGTH ) {
+			throw new InvalidArgumentException( "Meta key '$key' is longer than 255 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
 		// The meta API unslashes objects in place, which corrupts them and the caller's copy.
 		if ( ! self::is_storable( $value ) ) {
 			throw new InvalidArgumentException( "The '$key' meta value holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.

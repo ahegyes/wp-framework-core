@@ -20,6 +20,16 @@ final class OptionRows {
 	// region FIELDS AND CONSTANTS
 
 	/**
+	 * The length of the option_name column, past which the database truncates a name onto another option's without an error.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     int
+	 */
+	protected const int MAX_NAME_LENGTH = 191;
+
+	/**
 	 * The database connection.
 	 *
 	 * @since   2.0.0
@@ -313,18 +323,18 @@ final class OptionRows {
 	}
 
 	/**
-	 * Throws unless the name is one the options API addresses unchanged.
+	 * Throws when the name is empty, surrounded by whitespace, which every options API function trims, or longer than the option_name column.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @param   string $name The option name or prefix.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the name is empty or trim() would change it, as every options API function trims names.
+	 * @throws  InvalidArgumentException Thrown when the name is empty, surrounded by whitespace or longer than 191 characters.
 	 */
 	protected function check_name( string $name ): void {
-		if ( '' === $name || \trim( $name ) !== $name ) {
-			throw new InvalidArgumentException( "Option name '$name' is empty or surrounded by whitespace." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		if ( '' === $name || \trim( $name ) !== $name || \mb_strlen( $name ) > self::MAX_NAME_LENGTH ) {
+			throw new InvalidArgumentException( "Option name '$name' is empty, surrounded by whitespace or longer than 191 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}
 
