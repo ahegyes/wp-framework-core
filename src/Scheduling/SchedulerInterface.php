@@ -18,7 +18,7 @@ interface SchedulerInterface {
 	/**
 	 * Ensures that an invocation of the hook is pending or running, adding one that runs as soon as possible when none is.
 	 *
-	 * Inside the hook's own callback the running invocation counts too, so a callback continues itself with schedule_single() instead.
+	 * On Action Scheduler the running invocation counts too, so a callback continues itself with schedule_single() instead.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -53,7 +53,7 @@ interface SchedulerInterface {
 	/**
 	 * Ensures that the hook recurs at the given interval, creating its chain when none exists and replacing duplicate chains, or a chain at another interval, with one chain, which also cancels a pending one-off invocation of the identity.
 	 *
-	 * A running occurrence defers any replacement to a later call, because Action Scheduler queues its successor only after it completes.
+	 * On Action Scheduler a running occurrence defers any replacement to a later call, because it queues its successor only after it completes; WP-Cron shows no running state, so it is called outside the hook's own callback.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
