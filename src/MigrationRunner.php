@@ -414,7 +414,9 @@ final class MigrationRunner implements ComponentInterface {
 	protected function pause(): void {
 		$this->unlock();
 
-		$scheduled = $this->scheduler->enqueue( new ScheduledHook( $this->get_hook() ) );
+		// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due now.
+		$hook      = new ScheduledHook( $this->get_hook() );
+		$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
 		if ( true !== $scheduled ) {
 			$this->log( 'warning', 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
 		}
