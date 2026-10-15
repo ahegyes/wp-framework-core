@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Notices\Internal;
+namespace DeepWebSolutions\Framework\Notices\Stores;
 
 use DeepWebSolutions\Framework\Notices\NoticeIdentity;
 use DeepWebSolutions\Framework\Notices\NoticeScope;
