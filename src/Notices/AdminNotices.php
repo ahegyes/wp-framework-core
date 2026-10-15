@@ -220,7 +220,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 */
 	public function render_notices(): void {
-		if ( true === \get_current_screen()?->is_block_editor() ) {
+		// The screen API loads only in the admin.
+		if ( \function_exists( 'get_current_screen' ) && true === \get_current_screen()?->is_block_editor() ) {
 			return;
 		}
 
