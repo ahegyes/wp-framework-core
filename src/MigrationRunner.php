@@ -215,6 +215,11 @@ final class MigrationRunner implements ComponentInterface {
 			}
 
 			while ( $revision < $target ) {
+				// The previous checkpoint fired option hooks, so another run may have taken the lock over since the last check.
+				if ( ! $this->holds_lock( $revision ) ) {
+					return;
+				}
+
 				$step = $this->steps[ $revision ];
 				if ( $this->is_out_of_budget() || ( $step instanceof BatchedMigrationStepInterface && ! \doing_action( $this->get_hook() ) ) ) {
 					$this->pause();
