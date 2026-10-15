@@ -419,7 +419,7 @@ final class OptionRows {
 	}
 
 	/**
-	 * Clears the option's cache entries on the site, so that get_option() reads the row as it now is.
+	 * Clears the option's cache entries on the site, and drops the cached lists that name it, so that get_option() reads the row as it now is.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -433,10 +433,10 @@ final class OptionRows {
 			static function () use ( $name ): void {
 				\wp_cache_delete( $name, 'options' );
 				foreach ( array( 'notoptions', 'alloptions' ) as $list ) {
+					// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped, as core drops alloptions.
 					$names = \wp_cache_get( $list, 'options' );
 					if ( \is_array( $names ) && \array_key_exists( $name, $names ) ) {
-						unset( $names[ $name ] );
-						\wp_cache_set( $list, $names, 'options' );
+						\wp_cache_delete( $list, 'options' );
 					}
 				}
 			}
