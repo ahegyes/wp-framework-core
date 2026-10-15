@@ -23,10 +23,10 @@ final readonly class Recurrence {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   int $seconds The interval in seconds.
+	 * @param   int $interval The interval in seconds.
 	 */
 	protected function __construct(
-		public int $seconds
+		public int $interval
 	) {}
 
 	// endregion
@@ -34,23 +34,23 @@ final readonly class Recurrence {
 	// region FACTORY METHODS
 
 	/**
-	 * Returns a recurrence every given number of seconds.
+	 * Returns a recurrence at a fixed interval.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   int $seconds The interval in seconds, at least 60.
+	 * @param   int $interval The interval in seconds, at least 60.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the interval is under a minute.
 	 *
 	 * @return  self
 	 */
-	public static function every( int $seconds ): self {
-		if ( $seconds < 60 ) {
-			throw new InvalidArgumentException( "Interval '$seconds' is under the minimum of 60 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+	public static function from_interval( int $interval ): self {
+		if ( $interval < 60 ) {
+			throw new InvalidArgumentException( "Interval '$interval' is under the minimum of 60 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		return new self( $seconds );
+		return new self( $interval );
 	}
 
 	// endregion

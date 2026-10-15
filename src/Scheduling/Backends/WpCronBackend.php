@@ -6,6 +6,8 @@ use DeepWebSolutions\Framework\ComponentInterface;
 use DeepWebSolutions\Framework\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
 
+use function DeepWebSolutions\Framework\Shared\parse_int;
+
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -83,19 +85,23 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	public function census( ScheduledHook $hook ): array {
 		$key       = \md5( \serialize( $hook->args ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WP-Cron keys its events by their serialized arguments.
 		$pending   = 0;
-		$recurring = 0;
+		$intervals = array();
 		foreach ( $this->get_cron() as $hooks ) {
 			$events = \is_array( $hooks ) ? ( $hooks[ $hook->hook ] ?? null ) : null;
 			$event  = \is_array( $events ) ? ( $events[ $key ] ?? null ) : null;
-			if ( \is_array( $event ) ) {
-				++$pending;
-				$recurring += false === ( $event['schedule'] ?? false ) ? 0 : 1;
+			if ( ! \is_array( $event ) ) {
+				continue;
+			}
+
+			++$pending;
+			if ( false !== ( $event['schedule'] ?? false ) ) {
+				$intervals[] = \max( 0, parse_int( $event['interval'] ?? 0 ) ?? 0 );
 			}
 		}
 
 		return array(
 			'pending'           => $pending,
-			'pending_recurring' => $recurring,
+			'pending_intervals' => $intervals,
 			'running'           => 0,
 			'running_recurring' => 0,
 		);
@@ -131,10 +137,11 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function schedule_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority ): true|\WP_Error {
-		$schedule = "{$this->group}_every_{$recurrence->seconds}s";
+		$schedule = "{$this->group}_every_{$recurrence->interval}s";
 
-		// WP-Cron rejects a schedule name that the cron_schedules filter does not return yet.
-		$this->intervals[ $schedule ] = $recurrence->seconds;
+		// WP-Cron rejects a schedule name that the cron_schedules filter does not return yet, so the interval is added before the write, whether or not this request registered the filter.
+		$this->register_hooks();
+		$this->intervals[ $schedule ] = $recurrence->interval;
 
 		return self::to_result( \wp_schedule_event( \time(), $schedule, $hook->hook, $hook->args, true ) );
 	}
@@ -146,7 +153,7 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule( ScheduledHook $hook ): true|\WP_Error {
+	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
 		return self::to_result( \wp_clear_scheduled_hook( $hook->hook, $hook->args, true ) );
 	}
 
@@ -157,7 +164,7 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule_all( string $hook ): true|\WP_Error {
+	public function unschedule_hook( string $hook ): true|\WP_Error {
 		return self::to_result( \wp_unschedule_hook( $hook, true ) );
 	}
 

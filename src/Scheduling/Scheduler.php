@@ -45,7 +45,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   string                 $group    The plugin's hook prefix, which names its Action Scheduler group and prefixes its WP-Cron schedules.
-	 * @param   list<BackendInterface> $backends Optional. The backends in order of preference for writes. Default is Action Scheduler, then WP-Cron.
+	 * @param   list<BackendInterface> $backends Optional. The backends in order of preference for writes, which only tests replace. Default is Action Scheduler, then WP-Cron.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the group is not a letter followed by up to 189 letters, digits, underscores and hyphens.
 	 */
@@ -92,14 +92,11 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 		return $this->write(
 			__METHOD__,
 			function () use ( $hook, $priority ): true|\WP_Error {
-				// Inside the hook's own callback the running invocation is the one asking for a continuation, so it neither counts nor makes the insert unique.
-				$outside = ! \doing_action( $hook->hook );
-				$census  = $this->census( $hook );
-				if ( 0 < $census['pending'] || ( $outside && 0 < $census['running'] ) ) {
-					return true;
-				}
+				$census = $this->census( $hook );
 
-				return $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->enqueue( $hook, $priority, $outside ) );
+				return 0 < $census['pending'] + $census['running']
+					? true
+					: $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->enqueue( $hook, $priority, true ) );
 			}
 		);
 	}
@@ -113,7 +110,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @throws  InvalidArgumentException Thrown when the timestamp is below 1.
 	 */
 	#[\Override]
-	public function schedule_at( ScheduledHook $hook, int $timestamp, int $priority = 10 ): true|\WP_Error {
+	public function schedule_single( ScheduledHook $hook, int $timestamp, int $priority = 10 ): true|\WP_Error {
 		self::check_priority( $priority );
 		if ( $timestamp < 1 ) {
 			throw new InvalidArgumentException( "Timestamp '$timestamp' is not a positive Unix time." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
@@ -141,11 +138,11 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			__METHOD__,
 			function () use ( $hook, $recurrence, $priority ): true|\WP_Error {
 				$census = $this->census( $hook );
-				if ( 1 === $census['pending_recurring'] || 0 < $census['running_recurring'] ) {
+				if ( 0 < $census['running_recurring'] || array( $recurrence->interval ) === $census['pending_intervals'] ) {
 					return true;
 				}
 
-				$cleared = 0 < $census['pending_recurring'] ? $this->clear( $hook ) : true;
+				$cleared = array() === $census['pending_intervals'] ? true : $this->clear( $hook );
 
 				return true === $cleared
 					? $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->schedule_recurring( $hook, $recurrence, $priority ) )
@@ -162,6 +159,10 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function is_scheduled( ScheduledHook $hook ): bool {
+		if ( true !== $this->check_ready( __METHOD__ ) ) {
+			return false;
+		}
+
 		$census = $this->census( $hook );
 
 		return 0 < $census['pending'] + $census['running'];
@@ -174,7 +175,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule( ScheduledHook $hook ): true|\WP_Error {
+	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
 		return $this->write( __METHOD__, fn (): true|\WP_Error => $this->clear( $hook ) );
 	}
 
@@ -185,7 +186,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule_all( string $hook ): true|\WP_Error {
+	public function unschedule_hook( string $hook ): true|\WP_Error {
 		// Given no hook name, Action Scheduler would cancel the pending actions of every hook.
 		$hook = ( new ScheduledHook( $hook ) )->hook;
 
@@ -193,7 +194,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			__METHOD__,
 			function () use ( $hook ): true|\WP_Error {
 				foreach ( $this->get_readable_backends() as $backend ) {
-					$cleared = $backend->unschedule_all( $hook );
+					$cleared = $backend->unschedule_hook( $hook );
 					if ( true !== $cleared ) {
 						return $cleared;
 					}
@@ -209,9 +210,36 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Runs a write once init has fired and every loaded scheduler has initialized, outside a switched site, returning a throw as an error.
+	 * Returns true once init has fired and every loaded scheduler has initialized, outside a switched site, and otherwise an error with a developer notice.
 	 *
-	 * Action Scheduler initializes its store at init priority 1, so routing an earlier write to WP-Cron would split one hook across both schedulers.
+	 * Action Scheduler initializes its store at init priority 1, so routing an earlier call to WP-Cron would split one hook across both schedulers.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $method The public method called, for the developer notice.
+	 *
+	 * @return  true|\WP_Error
+	 */
+	protected function check_ready( string $method ): true|\WP_Error {
+		$error = match ( true ) {
+			0 === \did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() )
+				=> new \WP_Error( 'scheduler_not_ready', 'Scheduling waits until init has fired and Action Scheduler has initialized.' ),
+			// Readiness is measured for the site that loaded the plugins, while a switched site may run other plugins or lack Action Scheduler's tables.
+			\is_multisite() && \ms_is_switched()
+				=> new \WP_Error( 'scheduler_switched', 'Scheduling is not supported while switched to another site.' ),
+			default => true,
+		};
+
+		if ( true !== $error ) {
+			\_doing_it_wrong( \esc_html( $method ), \esc_html( $error->get_error_message() ), '2.0.0' );
+		}
+
+		return $error;
+	}
+
+	/**
+	 * Runs a write once scheduling is ready, returning a throw as an error.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -222,16 +250,9 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @return  true|\WP_Error
 	 */
 	protected function write( string $method, \Closure $operation ): true|\WP_Error {
-		if ( 0 === \did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() ) ) {
-			$message = 'Scheduling writes wait until init has fired and Action Scheduler has initialized.';
-			\_doing_it_wrong( \esc_html( $method ), \esc_html( $message ), '2.0.0' );
-
-			return new \WP_Error( 'scheduler_not_ready', $message );
-		}
-
-		// Readiness is measured for the site that loaded the plugins, while a switched site may run other plugins or lack Action Scheduler's tables.
-		if ( \is_multisite() && \ms_is_switched() ) {
-			return new \WP_Error( 'scheduler_switched', 'Scheduling writes are not supported while switched to another site.' );
+		$ready = $this->check_ready( $method );
+		if ( true !== $ready ) {
+			return $ready;
 		}
 
 		try {
@@ -275,7 +296,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	protected function clear( ScheduledHook $hook ): true|\WP_Error {
 		foreach ( $this->get_readable_backends() as $backend ) {
-			$cleared = $backend->unschedule( $hook );
+			$cleared = $backend->clear_scheduled_hook( $hook );
 			if ( true !== $cleared ) {
 				return $cleared;
 			}
@@ -303,14 +324,14 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	protected function census( ScheduledHook $hook ): array {
 		$census = array(
 			'pending'           => 0,
-			'pending_recurring' => 0,
+			'pending_intervals' => array(),
 			'running'           => 0,
 			'running_recurring' => 0,
 		);
 		foreach ( $this->get_readable_backends() as $backend ) {
 			$counted                      = $backend->census( $hook );
 			$census['pending']           += $counted['pending'];
-			$census['pending_recurring'] += $counted['pending_recurring'];
+			$census['pending_intervals']  = \array_merge( $census['pending_intervals'], $counted['pending_intervals'] );
 			$census['running']           += $counted['running'];
 			$census['running_recurring'] += $counted['running_recurring'];
 		}

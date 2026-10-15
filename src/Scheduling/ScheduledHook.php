@@ -7,7 +7,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * The identity of a scheduled invocation: a hook name and the positional arguments its callbacks receive.
+ * The identity of a scheduled invocation, either one-off or recurring but never both: a hook name and the positional arguments its callbacks receive.
  *
  * Arguments are limited to integers, strings, booleans and null, which both Action Scheduler and WP-Cron store and pass back unchanged.
  *

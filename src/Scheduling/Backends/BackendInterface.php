@@ -8,14 +8,14 @@ use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * One scheduler that the framework's Scheduler writes to, reads from and clears.
+ * One scheduler that the framework's Scheduler writes to, reads from and clears, implemented only by the framework and replaced only in tests.
  *
  * @since   2.0.0
  * @version 2.0.0
  *
  * @internal
  *
- * @phpstan-type Census array{pending: int<0, max>, pending_recurring: int<0, max>, running: int<0, max>, running_recurring: int<0, max>}
+ * @phpstan-type Census array{pending: int<0, max>, pending_intervals: list<int<0, max>>, running: int<0, max>, running_recurring: int<0, max>}
  */
 interface BackendInterface {
 	/**
@@ -29,7 +29,7 @@ interface BackendInterface {
 	public function get_state(): BackendState;
 
 	/**
-	 * Returns how many invocations of the hook are pending and running, in all and as occurrences of a recurring chain.
+	 * Returns how many invocations of the hook are pending and running, the interval of each pending recurring occurrence, and how many running occurrences recur.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -83,7 +83,7 @@ interface BackendInterface {
 	public function schedule_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority ): true|\WP_Error;
 
 	/**
-	 * Cancels every pending invocation of the hook.
+	 * Cancels every pending invocation of the hook with its arguments.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -92,7 +92,7 @@ interface BackendInterface {
 	 *
 	 * @return  true|\WP_Error
 	 */
-	public function unschedule( ScheduledHook $hook ): true|\WP_Error;
+	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error;
 
 	/**
 	 * Cancels every pending invocation of the hook name, whatever its arguments.
@@ -104,5 +104,5 @@ interface BackendInterface {
 	 *
 	 * @return  true|\WP_Error
 	 */
-	public function unschedule_all( string $hook ): true|\WP_Error;
+	public function unschedule_hook( string $hook ): true|\WP_Error;
 }

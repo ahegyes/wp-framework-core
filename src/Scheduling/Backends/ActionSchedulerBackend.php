@@ -5,6 +5,8 @@ namespace DeepWebSolutions\Framework\Scheduling\Backends;
 use DeepWebSolutions\Framework\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
 
+use function DeepWebSolutions\Framework\Shared\parse_int;
+
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -72,9 +74,9 @@ final class ActionSchedulerBackend implements BackendInterface {
 
 		return array(
 			'pending'           => \count( $pending ),
-			'pending_recurring' => self::count_recurring( $pending ),
+			'pending_intervals' => self::get_intervals( $pending ),
 			'running'           => \count( $running ),
-			'running_recurring' => self::count_recurring( $running ),
+			'running_recurring' => \count( self::get_intervals( $running ) ),
 		);
 	}
 
@@ -108,7 +110,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function schedule_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority ): true|\WP_Error {
-		return $this->confirm( \as_schedule_recurring_action( \time(), $recurrence->seconds, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
+		return $this->confirm( \as_schedule_recurring_action( \time(), $recurrence->interval, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
 	}
 
 	/**
@@ -118,7 +120,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule( ScheduledHook $hook ): true|\WP_Error {
+	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
 		\as_unschedule_all_actions( $hook->hook, $hook->args, $this->group );
 
 		return true;
@@ -131,7 +133,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function unschedule_all( string $hook ): true|\WP_Error {
+	public function unschedule_hook( string $hook ): true|\WP_Error {
 		\as_unschedule_all_actions( $hook );
 
 		return true;
@@ -164,17 +166,25 @@ final class ActionSchedulerBackend implements BackendInterface {
 	}
 
 	/**
-	 * Returns how many of the actions belong to a recurring chain.
+	 * Returns the interval of each action that belongs to a recurring chain, where a recurrence other than a fixed interval reads as 0.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @param   array<mixed> $actions The actions that Action Scheduler returned.
 	 *
-	 * @return  int<0, max>
+	 * @return  list<int<0, max>>
 	 */
-	protected static function count_recurring( array $actions ): int {
-		return \count( \array_filter( $actions, static fn ( mixed $action ): bool => $action instanceof \ActionScheduler_Action && $action->get_schedule()->is_recurring() ) );
+	protected static function get_intervals( array $actions ): array {
+		$intervals = array();
+		foreach ( $actions as $action ) {
+			$schedule = $action instanceof \ActionScheduler_Action ? $action->get_schedule() : null;
+			if ( ! \is_null( $schedule ) && $schedule->is_recurring() ) {
+				$intervals[] = $schedule instanceof \ActionScheduler_IntervalSchedule ? \max( 0, parse_int( $schedule->get_recurrence() ) ?? 0 ) : 0;
+			}
+		}
+
+		return $intervals;
 	}
 
 	/**
