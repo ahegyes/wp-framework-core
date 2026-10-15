@@ -46,7 +46,7 @@ final readonly class NoticeIdentity {
 	// region METHODS
 
 	/**
-	 * Returns the key of the notice the identity names, without the revision.
+	 * Returns the key of the notice the identity names, which all its revisions share.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -58,18 +58,6 @@ final readonly class NoticeIdentity {
 		$owner   = NoticeScope::User === $context->scope ? "$context->site_id:$context->owner" : $context->owner;
 
 		return "{$context->scope->value}:$owner:$this->id";
-	}
-
-	/**
-	 * Returns the identity as the notice's key with its revision.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  string
-	 */
-	public function to_key(): string {
-		return "{$this->to_notice_key()}@$this->revision";
 	}
 
 	// endregion

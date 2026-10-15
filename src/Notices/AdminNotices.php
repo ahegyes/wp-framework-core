@@ -457,6 +457,8 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Returns the nonce action of the identity's dismissal ticket.
 	 *
+	 * It names the revision, so a ticket shown for one revision cannot dismiss the next.
+	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
@@ -465,7 +467,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_ticket_action( NoticeIdentity $identity ): string {
-		return "{$this->prefix}_dismiss|{$identity->to_key()}";
+		return "{$this->prefix}_dismiss|{$identity->to_notice_key()}@$identity->revision";
 	}
 
 	// endregion
