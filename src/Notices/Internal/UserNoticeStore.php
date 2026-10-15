@@ -16,7 +16,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 /**
  * Keeps user notices as user meta rows under a key prefixed for the notice's site, one row per notice.
  *
- * Saving inserts a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain; reads return the newer and delete the older. Reads also delete expired rows.
+ * Saving inserts a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain; reads return the newer and delete the older, and delete both once the newer has expired.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -113,8 +113,8 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function all( NoticeContext $context ): array {
-		$key    = $this->get_meta_key( $context );
 		$newest = array();
+		$stale  = array();
 		foreach ( $this->get_rows( $context ) as $row ) {
 			$record = NoticeRecords::decode( $row, $context );
 			if ( null === $record ) {
@@ -123,18 +123,31 @@ final class UserNoticeStore implements NoticeStoreInterface {
 
 			$id      = $record->notice->id;
 			$current = $newest[ $id ] ?? null;
-			if ( NoticeRecords::is_expired( $record ) || ( null !== $current && $current['record']->created_at >= $record->created_at ) ) {
-				\delete_user_meta( $context->owner, $key, \wp_slash( $row ) );
+			if ( null !== $current && $current['record']->created_at >= $record->created_at ) {
+				$stale[] = $row;
 				continue;
 			}
 
 			if ( null !== $current ) {
-				\delete_user_meta( $context->owner, $key, \wp_slash( $current['row'] ) );
+				$stale[] = $current['row'];
 			}
 			$newest[ $id ] = array(
 				'record' => $record,
 				'row'    => $row,
 			);
+		}
+
+		// Expiry applies to the newest record only, so an older row of the same notice never takes its place.
+		foreach ( $newest as $id => $current ) {
+			if ( NoticeRecords::is_expired( $current['record'] ) ) {
+				$stale[] = $current['row'];
+				unset( $newest[ $id ] );
+			}
+		}
+
+		$key = $this->get_meta_key( $context );
+		foreach ( $stale as $row ) {
+			\delete_user_meta( $context->owner, $key, \wp_slash( $row ) );
 		}
 
 		return NoticeRecords::sort( \array_column( $newest, 'record' ) );
