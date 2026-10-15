@@ -20,6 +20,20 @@ use function DeepWebSolutions\Framework\Shared\parse_int;
  * @phpstan-import-type Census from BackendInterface
  */
 final class ActionSchedulerBackend implements BackendInterface {
+	// region FIELDS AND CONSTANTS
+
+	/**
+	 * The lowest Action Scheduler version that takes writes, the one that the WooCommerce floor bundles.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected const string MINIMUM_VERSION = '4.1.0';
+
+	// endregion
+
 	// region MAGIC METHODS
 
 	/**
@@ -28,12 +42,10 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $group           The Action Scheduler group that every write and every identity query uses.
-	 * @param   string $minimum_version Optional. The lowest Action Scheduler version that takes writes. Default is 4.1.0.
+	 * @param   string $group The Action Scheduler group that every write and every identity query uses.
 	 */
 	public function __construct(
-		protected string $group,
-		protected string $minimum_version = '4.1.0'
+		protected string $group
 	) {}
 
 	// endregion
@@ -58,7 +70,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 
 		$version = \ActionScheduler_Versions::instance()->latest_version();
 
-		return \is_string( $version ) && \version_compare( $version, $this->minimum_version, '>=' ) ? BackendState::Supported : BackendState::Unsupported;
+		return \is_string( $version ) && \version_compare( $version, self::MINIMUM_VERSION, '>=' ) ? BackendState::Supported : BackendState::Unsupported;
 	}
 
 	/**
