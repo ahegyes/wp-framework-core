@@ -17,7 +17,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Keeps a plugin's admin notices, shows them in the admin and lets users dismiss them through a REST endpoint.
  *
- * The prefix names the plugin's storage keys, hooks and REST namespace. Request notices live in this instance, so every component that adds them must share it.
+ * The prefix names the plugin's storage keys, hooks and REST namespace. Request notices live in the instance, so components that add them must share it.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -26,7 +26,7 @@ final class AdminNotices implements ComponentInterface {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The pattern a prefix matches: a lowercase letter followed by up to 31 lowercase letters, digits and underscores.
+	 * The pattern every prefix matches.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -36,7 +36,7 @@ final class AdminNotices implements ComponentInterface {
 	protected const string PREFIX_PATTERN = '/\A[a-z][a-z0-9_]{0,31}\z/';
 
 	/**
-	 * The underscore-separated segments a prefix may not contain, because storage names append them to the prefix, so a prefix holding one could write another plugin's rows.
+	 * The segments a prefix may not contain, because storage names append them to prefixes, so such a prefix could name another plugin's rows.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -76,7 +76,7 @@ final class AdminNotices implements ComponentInterface {
 	protected NoticeSelector $selector;
 
 	/**
-	 * Whether this request showed a notice that a user can dismiss through the endpoint.
+	 * Whether this request showed a ticketed notice.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -148,7 +148,7 @@ final class AdminNotices implements ComponentInterface {
 	// region METHODS
 
 	/**
-	 * Saves a notice in its scope's store for the current site, network or request, and returns its record.
+	 * Saves a notice in its scope's store for the current context and returns its record.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -171,7 +171,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Deletes the notice with the given id from its scope's store for the current site, network or request, whatever it holds.
+	 * Deletes every record of the notice with the given id in its scope's store for the current context.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -189,7 +189,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the unexpired notices of the scope for the current site, network or request, oldest first.
+	 * Returns the scope's unexpired notices for the current context, oldest first.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -212,9 +212,9 @@ final class AdminNotices implements ComponentInterface {
 	// region HOOKS
 
 	/**
-	 * Prints the notices the current user sees on this screen, then acknowledges each one-shot printed.
+	 * Prints the notices the current user sees here and acknowledges the one-shots among them.
 	 *
-	 * Block-editor screens print nothing, because the editor's styles hide notices there, so they wait for the next screen.
+	 * Block-editor screens print nothing, because the editors' styles hide classic notices.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -231,7 +231,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Registers the dismissal endpoint, POST {namespace}/notices/dismissals, where the namespace is the prefix with hyphens for underscores, followed by /v1.
+	 * Registers the dismissal endpoint, POST {namespace}/notices/dismissals.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -269,7 +269,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Prints the script that sends dismissals to the endpoint, when this request showed a notice that carries a ticket.
+	 * Prints the script that posts dismissals, when this request showed a ticketed notice.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -321,7 +321,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Records that the current user dismissed a notice that was shown to them with a ticket, and fires the dismissal action when the state changed.
+	 * Records the current user's dismissal of a notice they were shown with a ticket.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -376,7 +376,7 @@ final class AdminNotices implements ComponentInterface {
 
 		if ( $changed ) {
 			/**
-			 * Fires once a user's dismissal of a notice changed their state for it.
+			 * Fires when a user's dismissal changed their state for a notice.
 			 *
 			 * @since   2.0.0
 			 * @version 2.0.0
@@ -398,7 +398,7 @@ final class AdminNotices implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Prints one notice through wp_admin_notice(), with a dismissal ticket when it is persistent and dismissible.
+	 * Prints a notice, with a dismissal ticket when it is persistent and dismissible.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -419,7 +419,7 @@ final class AdminNotices implements ComponentInterface {
 		}
 
 		/**
-		 * Filters the message of a notice as it prints, such as to translate it for the current user or add a link that needs a fresh nonce.
+		 * Filters a notice's message as it prints, such as to translate it for the viewer or add a link that needs a fresh nonce.
 		 *
 		 * @since   2.0.0
 		 * @version 2.0.0
@@ -443,7 +443,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the REST namespace: the prefix with hyphens for underscores, followed by /v1.
+	 * Returns the REST namespace.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -455,7 +455,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the nonce action of the ticket that lets the current user dismiss the identity.
+	 * Returns the nonce action of the identity's dismissal ticket.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

@@ -7,9 +7,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Selects the notices the current user sees on the current admin surface and screen, and acknowledges each one-shot after it shows.
- *
- * Every display of notices shares this selection and acknowledgement, so each applies the same rules and never consumes a notice it did not show.
+ * Selects the notices the current user sees on the current admin surface and screen, and acknowledges the one-shots shown.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -56,9 +54,9 @@ final class NoticeSelector {
 	// region METHODS
 
 	/**
-	 * Returns the notices the current user sees here: network, site, user and request notices, each scope oldest first.
+	 * Returns the notices the current user sees here, in scope order and oldest first within a scope.
 	 *
-	 * A scope whose store fails is logged and left out, so the other scopes still show.
+	 * A scope whose store fails is logged and left out.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -92,7 +90,7 @@ final class NoticeSelector {
 	}
 
 	/**
-	 * Records that the current user was shown a one-shot notice: a request or user one-shot is consumed, and a site or network one-shot records its delivery to the user.
+	 * Records that the current user was shown a one-shot notice, consuming it unless other users still need to see it.
 	 *
 	 * A failed write is logged, so the notice may show again.
 	 *
@@ -123,7 +121,7 @@ final class NoticeSelector {
 	// region HELPERS
 
 	/**
-	 * Returns whether the scope's notices show on the current admin surface: request notices everywhere, network notices in the site and network admin, and user and site notices in the site admin only.
+	 * Returns whether the scope's notices show on the current admin surface.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -141,7 +139,7 @@ final class NoticeSelector {
 	}
 
 	/**
-	 * Returns whether the notice shows to the user on the current screen, given its screens, its capability, the user's state for it and the visibility filter.
+	 * Returns whether the notice shows to the user on the current screen.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

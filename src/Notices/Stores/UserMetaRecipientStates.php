@@ -166,7 +166,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	}
 
 	/**
-	 * Returns the user's valid version 1 rows for the identity's notice, at any revision, with their revisions and states, in the order they were written.
+	 * Returns the user's valid rows for the identity's notice at any revision, oldest first.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

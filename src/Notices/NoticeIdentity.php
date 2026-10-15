@@ -46,7 +46,7 @@ final readonly class NoticeIdentity {
 	// region METHODS
 
 	/**
-	 * Returns the key of the notice the identity names: its scope, owner and id, where a user notice's owner is its site and user.
+	 * Returns the key of the notice the identity names, without the revision.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -61,7 +61,7 @@ final readonly class NoticeIdentity {
 	}
 
 	/**
-	 * Returns the identity as the notice's key followed by the revision.
+	 * Returns the identity as the notice's key with its revision.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
