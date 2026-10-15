@@ -7,6 +7,7 @@
   "require": {
     "php": ">=8.5",
     "ahegyes/wp-framework-shared": "^2.0",
+    "psr/clock": "^1",
     "psr/container": "^2",
     "psr/log": "^3"
   },
