@@ -14,7 +14,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
  * @since   2.0.0
  * @version 2.0.0
  *
- * @phpstan-type NoticeRow array{v: 1, id: string, message: string, type: value-of<NoticeType>, scope: value-of<NoticeScope>, persistent: bool, dismissible: bool, capability: string|null, screens: list<string>, expires_at: int|null, revision: int}
+ * @phpstan-type NoticeRow array{v: 1, id: string, message: string, type: value-of<NoticeType>, scope: value-of<NoticeScope>, persistent: bool, dismissible: bool, capability: string|null, screens: list<string>, expires_at: int|null}
  */
 final readonly class Notice {
 	// region FIELDS AND CONSTANTS
@@ -39,7 +39,7 @@ final readonly class Notice {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string       $id          The id, unique within the notice's context, matching ID_PATTERN.
+	 * @param   string       $id          The id, unique within the notice's context and matching ID_PATTERN; dismissals and deliveries hold for the id, so a new occasion needs a new one.
 	 * @param   string       $message     The message, as HTML in the locale of the request that creates the notice.
 	 * @param   NoticeType   $type        Optional. The kind of notice. Default is an error.
 	 * @param   NoticeScope  $scope       Optional. Where the notice belongs. Default is a user.
@@ -48,9 +48,8 @@ final readonly class Notice {
 	 * @param   string|null  $capability  Optional. The capability a viewer needs, which site and network notices require. Default is none.
 	 * @param   list<string> $screens     Optional. The ids of the screens the notice shows on. Default is every screen of its scope's surfaces.
 	 * @param   int|null     $expires_at  Optional. The Unix time at which the notice expires. Default is never.
-	 * @param   int          $revision    Optional. The revision, which a change raises to show the notice again to viewers who dismissed or were shown an earlier one. Default 1.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the id, capability, screens, expiry or revision is invalid.
+	 * @throws  InvalidArgumentException Thrown when the id, capability, screens or expiry is invalid.
 	 */
 	public function __construct(
 		public string $id,
@@ -61,8 +60,7 @@ final readonly class Notice {
 		public bool $dismissible = true,
 		public ?string $capability = null,
 		public array $screens = array(),
-		public ?int $expires_at = null,
-		public int $revision = 1
+		public ?int $expires_at = null
 	) {
 		if ( 1 !== \preg_match( self::ID_PATTERN, $id ) ) {
 			throw new InvalidArgumentException( "Notice id '$id' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
@@ -82,10 +80,6 @@ final readonly class Notice {
 
 		if ( ! \is_null( $expires_at ) && $expires_at < 1 ) {
 			throw new InvalidArgumentException( "The expiry of notice '$id' is not a positive Unix time." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		if ( $revision < 1 ) {
-			throw new InvalidArgumentException( "The revision of notice '$id' is below 1." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}
 
@@ -113,7 +107,6 @@ final readonly class Notice {
 			'capability'  => $this->capability,
 			'screens'     => $this->screens,
 			'expires_at'  => $this->expires_at,
-			'revision'    => $this->revision,
 		);
 	}
 
@@ -143,7 +136,6 @@ final readonly class Notice {
 			'capability'  => null,
 			'screens'     => array(),
 			'expires_at'  => null,
-			'revision'    => 1,
 		);
 
 		$type    = \is_string( $row['type'] ) ? NoticeType::tryFrom( $row['type'] ) : null;
@@ -152,13 +144,13 @@ final readonly class Notice {
 		if (
 			1 !== ( $row['v'] ?? null ) || ! \is_string( $row['id'] ?? null ) || ! \is_string( $row['message'] ?? null ) || \is_null( $type ) || \is_null( $scope )
 			|| ! \is_bool( $row['persistent'] ) || ! \is_bool( $row['dismissible'] ) || ! ( \is_null( $row['capability'] ) || \is_string( $row['capability'] ) )
-			|| \is_null( $screens ) || $screens !== $row['screens'] || ! \array_is_list( $screens ) || ! ( \is_null( $row['expires_at'] ) || \is_int( $row['expires_at'] ) ) || ! \is_int( $row['revision'] )
+			|| \is_null( $screens ) || $screens !== $row['screens'] || ! \array_is_list( $screens ) || ! ( \is_null( $row['expires_at'] ) || \is_int( $row['expires_at'] ) )
 		) {
 			return null;
 		}
 
 		try {
-			return new self( $row['id'], $row['message'], $type, $scope, $row['persistent'], $row['dismissible'], $row['capability'], $screens, $row['expires_at'], $row['revision'] );
+			return new self( $row['id'], $row['message'], $type, $scope, $row['persistent'], $row['dismissible'], $row['capability'], $screens, $row['expires_at'] );
 		} catch ( InvalidArgumentException ) {
 			return null;
 		}

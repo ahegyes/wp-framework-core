@@ -20,7 +20,7 @@ interface RecipientStateStoreInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   NoticeIdentity $identity The notice identity, revision included.
+	 * @param   NoticeIdentity $identity The notice identity.
 	 * @param   int            $user_id  The user.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the user id is below 1.
@@ -31,12 +31,12 @@ interface RecipientStateStoreInterface {
 	public function get( NoticeIdentity $identity, int $user_id ): ?RecipientState;
 
 	/**
-	 * Records the user's state for the identity, replacing the user's states for that notice at the same or an earlier revision, and returns whether the state changed.
+	 * Records the user's state for the identity, replacing any earlier one, and returns whether the state changed.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   NoticeIdentity $identity The notice identity, revision included.
+	 * @param   NoticeIdentity $identity The notice identity.
 	 * @param   int            $user_id  The user.
 	 * @param   RecipientState $state    The state.
 	 *

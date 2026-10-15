@@ -245,21 +245,16 @@ final class AdminNotices implements ComponentInterface {
 				'callback'            => array( $this, 'rest_dismiss' ),
 				'permission_callback' => 'is_user_logged_in',
 				'args'                => array(
-					'scope'    => array(
+					'scope'  => array(
 						'type'     => 'string',
 						'enum'     => \array_column( NoticeScope::cases(), 'value' ),
 						'required' => true,
 					),
-					'id'       => array(
+					'id'     => array(
 						'type'     => 'string',
 						'required' => true,
 					),
-					'revision' => array(
-						'type'     => 'integer',
-						'minimum'  => 1,
-						'required' => true,
-					),
-					'ticket'   => array(
+					'ticket' => array(
 						'type'     => 'string',
 						'required' => true,
 					),
@@ -304,7 +299,6 @@ final class AdminNotices implements ComponentInterface {
 						body: JSON.stringify( {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
-							revision: notice.getAttribute( 'data-notice-revision' ),
 							ticket: notice.getAttribute( 'data-notice-ticket' )
 						} )
 					} ).then( function ( response ) {
@@ -326,23 +320,22 @@ final class AdminNotices implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id, revision and ticket.
+	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id and ticket.
 	 *
 	 * @return  \WP_REST_Response|\WP_Error
 	 */
 	public function rest_dismiss( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		$params   = $request->get_params();
-		$scope    = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
-		$id       = $params['id'] ?? null;
-		$revision = $params['revision'] ?? null;
-		$ticket   = $params['ticket'] ?? null;
-		$user_id  = \get_current_user_id();
+		$params  = $request->get_params();
+		$scope   = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
+		$id      = $params['id'] ?? null;
+		$ticket  = $params['ticket'] ?? null;
+		$user_id = \get_current_user_id();
 
-		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_int( $revision ) || $revision < 1 || ! \is_string( $ticket ) ) {
-			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id, revision or ticket is invalid.', array( 'status' => 400 ) );
+		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $ticket ) ) {
+			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or ticket is invalid.', array( 'status' => 400 ) );
 		}
 
-		$identity = new NoticeIdentity( NoticeContext::current( $scope ), $id, $revision );
+		$identity = new NoticeIdentity( NoticeContext::current( $scope ), $id );
 		if ( false === \wp_verify_nonce( $ticket, $this->get_ticket_action( $identity ) ) ) {
 			return new \WP_Error( 'rest_forbidden', 'The ticket does not match a notice shown to this user.', array( 'status' => 403 ) );
 		}
@@ -350,8 +343,8 @@ final class AdminNotices implements ComponentInterface {
 		try {
 			if ( NoticeScope::Request !== $scope ) {
 				$record = $this->stores[ $scope->value ]->find( $id, $identity->context );
-				if ( null === $record || $revision !== $record->notice->revision ) {
-					return new \WP_Error( 'rest_notice_invalid_id', 'No notice has that id and revision.', array( 'status' => 404 ) );
+				if ( null === $record ) {
+					return new \WP_Error( 'rest_notice_invalid_id', 'No notice has that id.', array( 'status' => 404 ) );
 				}
 
 				$notice = $record->notice;
@@ -381,13 +374,12 @@ final class AdminNotices implements ComponentInterface {
 			 * @since   2.0.0
 			 * @version 2.0.0
 			 *
-			 * @param   string $id       The notice's id.
-			 * @param   string $scope    The notice's scope.
-			 * @param   int    $revision The notice's revision.
-			 * @param   int    $user_id  The user who dismissed it.
-			 * @param   int    $owner    The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
+			 * @param   string $id      The notice's id.
+			 * @param   string $scope   The notice's scope.
+			 * @param   int    $user_id The user who dismissed it.
+			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			\do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $revision, $user_id, $identity->context->owner );
+			\do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $identity->context->owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -408,13 +400,12 @@ final class AdminNotices implements ComponentInterface {
 	protected function print_notice( StoredNotice $record ): void {
 		$notice     = $record->notice;
 		$attributes = array(
-			'data-notices'         => $this->prefix,
-			'data-notice-scope'    => $notice->scope->value,
-			'data-notice-id'       => $notice->id,
-			'data-notice-revision' => (string) $notice->revision,
+			'data-notices'      => $this->prefix,
+			'data-notice-scope' => $notice->scope->value,
+			'data-notice-id'    => $notice->id,
 		);
 		if ( $notice->persistent && $notice->dismissible ) {
-			$attributes['data-notice-ticket'] = \wp_create_nonce( $this->get_ticket_action( new NoticeIdentity( $record->context, $notice->id, $notice->revision ) ) );
+			$attributes['data-notice-ticket'] = \wp_create_nonce( $this->get_ticket_action( new NoticeIdentity( $record->context, $notice->id ) ) );
 			$this->ticketed                   = true;
 		}
 
@@ -424,12 +415,11 @@ final class AdminNotices implements ComponentInterface {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 *
-		 * @param   string $message  The message, as HTML.
-		 * @param   string $id       The notice's id.
-		 * @param   string $scope    The notice's scope.
-		 * @param   int    $revision The notice's revision.
+		 * @param   string $message The message, as HTML.
+		 * @param   string $id      The notice's id.
+		 * @param   string $scope   The notice's scope.
 		 */
-		$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value, $notice->revision );
+		$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
 
 		\wp_admin_notice(
 			\is_string( $message ) ? $message : $notice->message,
@@ -457,8 +447,6 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Returns the nonce action of the identity's dismissal ticket.
 	 *
-	 * It names the revision, so a ticket shown for one revision cannot dismiss the next.
-	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
@@ -467,7 +455,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_ticket_action( NoticeIdentity $identity ): string {
-		return "{$this->prefix}_dismiss|{$identity->to_notice_key()}@$identity->revision";
+		return "{$this->prefix}_dismiss|{$identity->to_key()}";
 	}
 
 	// endregion

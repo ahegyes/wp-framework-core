@@ -87,9 +87,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	public function get( NoticeIdentity $identity, int $user_id ): ?RecipientState {
 		$state = null;
 		foreach ( $this->get_rows( $identity, $user_id ) as $row ) {
-			if ( $identity->revision === $row['revision'] ) {
-				$state = RecipientState::tryFrom( $row['state'] );
-			}
+			$state = RecipientState::tryFrom( $row['state'] );
 		}
 
 		return $state;
@@ -108,10 +106,8 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 		$replaced = array();
 		$current  = null;
 		foreach ( $this->get_rows( $identity, $user_id ) as $row ) {
-			if ( $row['revision'] <= $identity->revision ) {
-				$replaced[] = $row['row'];
-				$current    = $identity->revision === $row['revision'] ? $row['state'] : $current;
-			}
+			$replaced[] = $row['row'];
+			$current    = $row['state'];
 		}
 
 		if ( $state->value === $current ) {
@@ -122,11 +118,10 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 			$user_id,
 			$this->get_meta_key( $identity ),
 			array(
-				'v'        => 1,
-				'notice'   => $identity->to_notice_key(),
-				'revision' => $identity->revision,
-				'state'    => $state->value,
-				'at'       => \time(),
+				'v'      => 1,
+				'notice' => $identity->to_key(),
+				'state'  => $state->value,
+				'at'     => \time(),
 			)
 		);
 
@@ -166,7 +161,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	}
 
 	/**
-	 * Returns the user's valid rows for the identity's notice at any revision, oldest first.
+	 * Returns the user's valid rows for the identity, oldest first.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -176,22 +171,21 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when the user id is below 1.
 	 *
-	 * @return  list<array{row: MetaRow, revision: int, state: string}>
+	 * @return  list<array{row: MetaRow, state: string}>
 	 */
 	protected function get_rows( NoticeIdentity $identity, int $user_id ): array {
 		if ( $user_id < 1 ) {
 			throw new InvalidArgumentException( "User id $user_id is below 1." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$notice = $identity->to_notice_key();
+		$notice = $identity->to_key();
 		$rows   = array();
 		foreach ( $this->rows->list( $user_id, $this->get_meta_key( $identity ) ) as $row ) {
 			$value = $row->value;
-			if ( \is_array( $value ) && 1 === ( $value['v'] ?? null ) && ( $value['notice'] ?? null ) === $notice && \is_int( $value['revision'] ?? null ) && \is_string( $value['state'] ?? null ) && \is_int( $value['at'] ?? null ) ) {
+			if ( \is_array( $value ) && 1 === ( $value['v'] ?? null ) && ( $value['notice'] ?? null ) === $notice && \is_string( $value['state'] ?? null ) && \is_int( $value['at'] ?? null ) ) {
 				$rows[] = array(
-					'row'      => $row,
-					'revision' => $value['revision'],
-					'state'    => $value['state'],
+					'row'   => $row,
+					'state' => $value['state'],
 				);
 			}
 		}

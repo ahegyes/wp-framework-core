@@ -109,7 +109,7 @@ final class NoticeSelector {
 			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope ) {
 				$this->stores[ $notice->scope->value ]->consume( $record );
 			} else {
-				$this->states->record( new NoticeIdentity( $record->context, $notice->id, $notice->revision ), \get_current_user_id(), RecipientState::Delivered );
+				$this->states->record( new NoticeIdentity( $record->context, $notice->id ), \get_current_user_id(), RecipientState::Delivered );
 			}
 		} catch ( \Throwable $exception ) {
 			$this->log( 'Could not acknowledge a {scope} notice: {message}', $notice->scope, $exception );
@@ -159,7 +159,7 @@ final class NoticeSelector {
 			return false;
 		}
 
-		$state = $this->states->get( new NoticeIdentity( $record->context, $notice->id, $notice->revision ), $user_id );
+		$state = $this->states->get( new NoticeIdentity( $record->context, $notice->id ), $user_id );
 		if ( RecipientState::Dismissed === $state || ( RecipientState::Delivered === $state && ! $notice->persistent ) ) {
 			return false;
 		}
@@ -170,12 +170,11 @@ final class NoticeSelector {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 *
-		 * @param   bool   $visible  Whether the notice shows; only true shows it.
-		 * @param   string $id       The notice's id.
-		 * @param   string $scope    The notice's scope.
-		 * @param   int    $revision The notice's revision.
+		 * @param   bool   $visible Whether the notice shows; only true shows it.
+		 * @param   string $id      The notice's id.
+		 * @param   string $scope   The notice's scope.
 		 */
-		return true === \apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $notice->scope->value, $notice->revision );
+		return true === \apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $notice->scope->value );
 	}
 
 	/**
