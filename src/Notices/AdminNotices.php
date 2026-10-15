@@ -299,11 +299,12 @@ final class AdminNotices implements ComponentInterface {
 
 					fetch( settings.url, {
 						method: 'POST',
+						credentials: 'include',
 						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': settings.nonce },
 						body: JSON.stringify( {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
-							revision: Number( notice.getAttribute( 'data-notice-revision' ) ),
+							revision: notice.getAttribute( 'data-notice-revision' ),
 							ticket: notice.getAttribute( 'data-notice-ticket' )
 						} )
 					} ).then( function ( response ) {
