@@ -15,7 +15,7 @@ use DeepWebSolutions\Framework\Storage\MetaRows;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Keeps recipient states as user meta rows, one per notice a user has interacted with: under a key prefixed for the notice's site, or for a request notice the current site, and under an unprefixed key for network notices.
+ * Keeps recipient states as user meta rows, one per notice a user has interacted with: under a key prefixed for the notice's site, or for a request notice the current site, and under an unprefixed network key for network notices.
  *
  * Recording adds the new row before it deletes the rows it read for the same notice, so two concurrent records never delete each other's row; the newest row wins on read.
  *
@@ -162,7 +162,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 			NoticeScope::Network => null,
 		};
 
-		return ( null === $site_id ? '' : $wpdb->get_blog_prefix( $site_id ) ) . "{$this->prefix}_notice_states";
+		return null === $site_id ? "{$this->prefix}_network_notice_states" : $wpdb->get_blog_prefix( $site_id ) . "{$this->prefix}_notice_states";
 	}
 
 	/**
