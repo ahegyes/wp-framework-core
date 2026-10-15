@@ -92,14 +92,14 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 		return $this->write(
 			__METHOD__,
 			function () use ( $hook, $priority ): true|\WP_Error {
-				if ( 0 < $this->census( $hook )['pending'] ) {
+				// Inside the hook's own callback the running invocation is the one asking for a continuation, so it neither counts nor makes the insert unique.
+				$outside = ! \doing_action( $hook->hook );
+				$census  = $this->census( $hook );
+				if ( 0 < $census['pending'] || ( $outside && 0 < $census['running'] ) ) {
 					return true;
 				}
 
-				// Inside the hook's own callback a unique insert would count the running invocation as a duplicate of its continuation.
-				$unique = ! \doing_action( $hook->hook );
-
-				return $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->enqueue( $hook, $priority, $unique ) );
+				return $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->enqueue( $hook, $priority, $outside ) );
 			}
 		);
 	}
@@ -141,11 +141,11 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			__METHOD__,
 			function () use ( $hook, $recurrence, $priority ): true|\WP_Error {
 				$census = $this->census( $hook );
-				if ( 1 === $census['pending'] || 0 < $census['running_recurring'] ) {
+				if ( 1 === $census['pending_recurring'] || 0 < $census['running_recurring'] ) {
 					return true;
 				}
 
-				$cleared = 0 < $census['pending'] ? $this->clear( $hook ) : true;
+				$cleared = 0 < $census['pending_recurring'] ? $this->clear( $hook ) : true;
 
 				return true === $cleared
 					? $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->schedule_recurring( $hook, $recurrence, $priority ) )
@@ -311,12 +311,14 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	protected function census( ScheduledHook $hook ): array {
 		$census = array(
 			'pending'           => 0,
+			'pending_recurring' => 0,
 			'running'           => 0,
 			'running_recurring' => 0,
 		);
 		foreach ( $this->get_readable_backends() as $backend ) {
 			$counted                      = $backend->census( $hook );
 			$census['pending']           += $counted['pending'];
+			$census['pending_recurring'] += $counted['pending_recurring'];
 			$census['running']           += $counted['running'];
 			$census['running_recurring'] += $counted['running_recurring'];
 		}

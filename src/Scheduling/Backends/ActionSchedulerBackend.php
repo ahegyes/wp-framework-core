@@ -67,12 +67,14 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function census( ScheduledHook $hook ): array {
+		$pending = \as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_PENDING ), OBJECT );
 		$running = \as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_RUNNING ), OBJECT );
 
 		return array(
-			'pending'           => \count( \as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_PENDING ), 'ids' ) ),
+			'pending'           => \count( $pending ),
+			'pending_recurring' => self::count_recurring( $pending ),
 			'running'           => \count( $running ),
-			'running_recurring' => \count( \array_filter( $running, static fn ( mixed $action ): bool => $action instanceof \ActionScheduler_Action && $action->get_schedule()->is_recurring() ) ),
+			'running_recurring' => self::count_recurring( $running ),
 		);
 	}
 
@@ -106,7 +108,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function schedule_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority ): true|\WP_Error {
-		return $this->confirm( \as_schedule_recurring_action( \time(), $recurrence->seconds, $hook->hook, $hook->args, $this->group, true, $priority ), $hook, true );
+		return $this->confirm( \as_schedule_recurring_action( \time(), $recurrence->seconds, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
 	}
 
 	/**
@@ -159,6 +161,20 @@ final class ActionSchedulerBackend implements BackendInterface {
 			'per_page' => -1,
 			'orderby'  => 'none',
 		);
+	}
+
+	/**
+	 * Returns how many of the actions belong to a recurring chain.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   array<mixed> $actions The actions that Action Scheduler returned.
+	 *
+	 * @return  int<0, max>
+	 */
+	protected static function count_recurring( array $actions ): int {
+		return \count( \array_filter( $actions, static fn ( mixed $action ): bool => $action instanceof \ActionScheduler_Action && $action->get_schedule()->is_recurring() ) );
 	}
 
 	/**

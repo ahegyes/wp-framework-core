@@ -15,7 +15,7 @@ use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
  *
  * @internal
  *
- * @phpstan-type Census array{pending: int<0, max>, running: int<0, max>, running_recurring: int<0, max>}
+ * @phpstan-type Census array{pending: int<0, max>, pending_recurring: int<0, max>, running: int<0, max>, running_recurring: int<0, max>}
  */
 interface BackendInterface {
 	/**
@@ -29,7 +29,7 @@ interface BackendInterface {
 	public function get_state(): BackendState;
 
 	/**
-	 * Returns how many invocations of the hook are pending, running, and running as part of a recurring chain.
+	 * Returns how many invocations of the hook are pending and running, in all and as occurrences of a recurring chain.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

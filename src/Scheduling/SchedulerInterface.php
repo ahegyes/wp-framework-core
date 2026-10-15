@@ -98,9 +98,9 @@ interface SchedulerInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $hook The hook name, 1 to 191 bytes without whitespace.
+	 * @param   string $hook The hook name, 1 to 191 bytes without whitespace, other than '0'.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the hook name is empty, longer than 191 bytes or holds whitespace.
+	 * @throws  InvalidArgumentException Thrown when the hook name is empty, '0', longer than 191 bytes or holds whitespace.
 	 *
 	 * @return  true|\WP_Error
 	 */

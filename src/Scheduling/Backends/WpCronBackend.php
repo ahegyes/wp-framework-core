@@ -81,17 +81,21 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function census( ScheduledHook $hook ): array {
-		$key     = \md5( \serialize( $hook->args ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WP-Cron keys its events by their serialized arguments.
-		$pending = 0;
+		$key       = \md5( \serialize( $hook->args ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- WP-Cron keys its events by their serialized arguments.
+		$pending   = 0;
+		$recurring = 0;
 		foreach ( $this->get_cron() as $hooks ) {
 			$events = \is_array( $hooks ) ? ( $hooks[ $hook->hook ] ?? null ) : null;
-			if ( \is_array( $events ) && isset( $events[ $key ] ) ) {
+			$event  = \is_array( $events ) ? ( $events[ $key ] ?? null ) : null;
+			if ( \is_array( $event ) ) {
 				++$pending;
+				$recurring += false === ( $event['schedule'] ?? false ) ? 0 : 1;
 			}
 		}
 
 		return array(
 			'pending'           => $pending,
+			'pending_recurring' => $recurring,
 			'running'           => 0,
 			'running_recurring' => 0,
 		);
@@ -212,7 +216,7 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	 * @return  array<mixed>
 	 */
 	protected function get_cron(): array {
-		$cron = \get_option( 'cron' );
+		$cron = \get_option( 'cron', array() );
 
 		return \is_array( $cron ) ? $cron : array();
 	}
