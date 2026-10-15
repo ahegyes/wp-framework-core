@@ -24,6 +24,7 @@ interface RecipientStateStoreInterface {
 	 * @param   int            $user_id  The user.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the user id is below 1.
+	 * @throws  RuntimeException         Thrown when the store cannot be read.
 	 *
 	 * @return  RecipientState|null
 	 */

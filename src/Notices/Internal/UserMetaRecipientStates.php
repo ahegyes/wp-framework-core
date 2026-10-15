@@ -9,13 +9,15 @@ use DeepWebSolutions\Framework\Notices\RecipientStateStoreInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
+use DeepWebSolutions\Framework\Storage\MetaRow;
+use DeepWebSolutions\Framework\Storage\MetaRows;
 
 \defined( 'ABSPATH' ) || exit;
 
 /**
  * Keeps recipient states as user meta rows, one per notice a user has interacted with: under a key prefixed for the notice's site, or for a request notice the current site, and under an unprefixed key for network notices.
  *
- * Recording inserts the new row before it deletes the rows it read for the same notice, so two concurrent records never delete each other's row; the newest row wins on read.
+ * Recording adds the new row before it deletes the rows it read for the same notice, so two concurrent records never delete each other's row; the newest row wins on read.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -34,6 +36,16 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 * @var     \wpdb
 	 */
 	protected \wpdb $wpdb;
+
+	/**
+	 * The user meta rows.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     MetaRows
+	 */
+	protected MetaRows $rows;
 
 	// endregion
 
@@ -58,6 +70,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 		}
 
 		$this->wpdb = $wpdb;
+		$this->rows = new MetaRows( 'user' );
 	}
 
 	// endregion
@@ -89,7 +102,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @throws  RuntimeException Thrown when the row cannot be added.
+	 * @throws  RuntimeException Thrown when the row cannot be added or a replaced row cannot be deleted.
 	 */
 	#[\Override]
 	public function record( NoticeIdentity $identity, int $user_id, RecipientState $state ): bool {
@@ -100,7 +113,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 		foreach ( $this->get_rows( $identity, $user_id ) as $row ) {
 			$at = \strrpos( $row['key'], '@' );
 			if ( false !== $at && \substr( $row['key'], 0, $at ) === $notice && (int) \substr( $row['key'], $at + 1 ) <= $identity->revision ) {
-				$replaced[] = $row;
+				$replaced[] = $row['row'];
 				$current    = $key === $row['key'] ? $row['state'] : $current;
 			}
 		}
@@ -109,19 +122,19 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 			return false;
 		}
 
-		$meta_key = $this->get_meta_key( $identity );
-		$row      = array(
-			'v'     => 1,
-			'key'   => $key,
-			'state' => $state->value,
-			'at'    => \time(),
+		$this->rows->add(
+			$user_id,
+			$this->get_meta_key( $identity ),
+			array(
+				'v'     => 1,
+				'key'   => $key,
+				'state' => $state->value,
+				'at'    => \time(),
+			)
 		);
-		if ( false === \add_user_meta( $user_id, $meta_key, \wp_slash( $row ) ) ) {
-			throw new RuntimeException( "Could not record the state of notice '$key' for user $user_id." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
 
 		foreach ( $replaced as $old ) {
-			\delete_user_meta( $user_id, $meta_key, \wp_slash( $old ) );
+			$this->rows->delete( $old );
 		}
 
 		return true;
@@ -156,7 +169,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	}
 
 	/**
-	 * Returns the user's valid version 1 rows under the identity's key, in the order they were written.
+	 * Returns the user's valid version 1 rows under the identity's key with their notice keys and states, in the order they were written.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -166,21 +179,26 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when the user id is below 1.
 	 *
-	 * @return  list<array{v: 1, key: string, state: string, at: int}>
+	 * @return  list<array{row: MetaRow, key: string, state: string}>
 	 */
 	protected function get_rows( NoticeIdentity $identity, int $user_id ): array {
 		if ( $user_id < 1 ) {
 			throw new InvalidArgumentException( "User id $user_id is below 1." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$rows = \get_user_meta( $user_id, $this->get_meta_key( $identity ), false );
+		$rows = array();
+		foreach ( $this->rows->list( $user_id, $this->get_meta_key( $identity ) ) as $row ) {
+			$value = $row->value;
+			if ( \is_array( $value ) && 1 === ( $value['v'] ?? null ) && \is_string( $value['key'] ?? null ) && \is_string( $value['state'] ?? null ) && \is_int( $value['at'] ?? null ) ) {
+				$rows[] = array(
+					'row'   => $row,
+					'key'   => $value['key'],
+					'state' => $value['state'],
+				);
+			}
+		}
 
-		return \array_values(
-			\array_filter(
-				\is_array( $rows ) ? $rows : array(),
-				static fn ( mixed $row ): bool => \is_array( $row ) && 1 === ( $row['v'] ?? null ) && \is_string( $row['key'] ?? null ) && \is_string( $row['state'] ?? null ) && \is_int( $row['at'] ?? null )
-			)
-		);
+		return $rows;
 	}
 
 	// endregion

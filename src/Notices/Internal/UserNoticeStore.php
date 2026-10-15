@@ -10,13 +10,15 @@ use DeepWebSolutions\Framework\Notices\StoredNotice;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
+use DeepWebSolutions\Framework\Storage\MetaRow;
+use DeepWebSolutions\Framework\Storage\MetaRows;
 
 \defined( 'ABSPATH' ) || exit;
 
 /**
  * Keeps user notices as user meta rows under a key prefixed for the notice's site, one row per notice.
  *
- * Saving inserts a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain; reads return the newer and delete the older, and delete both once the newer has expired.
+ * Saving adds a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain; reads return the newer and delete the older, and delete both once the newer has expired.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -35,6 +37,16 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 * @var     \wpdb
 	 */
 	protected \wpdb $wpdb;
+
+	/**
+	 * The user meta rows.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     MetaRows
+	 */
+	protected MetaRows $rows;
 
 	// endregion
 
@@ -59,6 +71,7 @@ final class UserNoticeStore implements NoticeStoreInterface {
 		}
 
 		$this->wpdb = $wpdb;
+		$this->rows = new MetaRows( 'user' );
 	}
 
 	// endregion
@@ -72,7 +85,7 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 * @version 2.0.0
 	 *
 	 * @throws  InvalidArgumentException Thrown when the notice is not a user notice.
-	 * @throws  RuntimeException         Thrown when the row cannot be added.
+	 * @throws  RuntimeException         Thrown when the row cannot be added or a replaced row cannot be deleted.
 	 */
 	#[\Override]
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
@@ -81,14 +94,12 @@ final class UserNoticeStore implements NoticeStoreInterface {
 			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a user context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$replaced = \array_filter( $this->get_rows( $context ), static fn ( mixed $row ): bool => \is_array( $row ) && ( $row['id'] ?? null ) === $notice->id );
+		$replaced = \array_filter( $this->rows->list( $context->owner, $key ), static fn ( MetaRow $row ): bool => \is_array( $row->value ) && ( $row->value['id'] ?? null ) === $notice->id );
 		$record   = new StoredNotice( $notice, $context, NoticeRecords::now(), \wp_generate_uuid4() );
-		if ( false === \add_user_meta( $context->owner, $key, \wp_slash( NoticeRecords::encode( $record ) ) ) ) {
-			throw new RuntimeException( "Could not save user notice '$notice->id' for user $context->owner." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
+		$this->rows->add( $context->owner, $key, NoticeRecords::encode( $record ) );
 
 		foreach ( $replaced as $row ) {
-			\delete_user_meta( $context->owner, $key, \wp_slash( $row ) );
+			$this->rows->delete( $row );
 		}
 
 		return $record;
@@ -115,8 +126,8 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	public function all( NoticeContext $context ): array {
 		$newest = array();
 		$stale  = array();
-		foreach ( $this->get_rows( $context ) as $row ) {
-			$record = NoticeRecords::decode( $row, $context );
+		foreach ( $this->rows->list( $context->owner, $this->get_meta_key( $context ) ) as $row ) {
+			$record = NoticeRecords::decode( $row->value, $context );
 			if ( null === $record ) {
 				continue;
 			}
@@ -145,9 +156,8 @@ final class UserNoticeStore implements NoticeStoreInterface {
 			}
 		}
 
-		$key = $this->get_meta_key( $context );
 		foreach ( $stale as $row ) {
-			\delete_user_meta( $context->owner, $key, \wp_slash( $row ) );
+			$this->rows->delete( $row );
 		}
 
 		return NoticeRecords::sort( \array_column( $newest, 'record' ) );
@@ -161,10 +171,9 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function consume( StoredNotice $observed ): bool {
-		$key = $this->get_meta_key( $observed->context );
-		$row = \array_find( $this->get_rows( $observed->context ), static fn ( mixed $row ): bool => \is_array( $row ) && ( $row['gen'] ?? null ) === $observed->generation );
+		$row = \array_find( $this->rows->list( $observed->context->owner, $this->get_meta_key( $observed->context ) ), static fn ( MetaRow $row ): bool => \is_array( $row->value ) && ( $row->value['gen'] ?? null ) === $observed->generation );
 
-		return null !== $row && \delete_user_meta( $observed->context->owner, $key, \wp_slash( $row ) );
+		return null !== $row && $this->rows->delete( $row );
 	}
 
 	/**
@@ -175,10 +184,9 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function remove( string $id, NoticeContext $context ): void {
-		$key = $this->get_meta_key( $context );
-		foreach ( $this->get_rows( $context ) as $row ) {
-			if ( \is_array( $row ) && ( $row['id'] ?? null ) === $id ) {
-				\delete_user_meta( $context->owner, $key, \wp_slash( $row ) );
+		foreach ( $this->rows->list( $context->owner, $this->get_meta_key( $context ) ) as $row ) {
+			if ( \is_array( $row->value ) && ( $row->value['id'] ?? null ) === $id ) {
+				$this->rows->delete( $row );
 			}
 		}
 	}
@@ -207,22 +215,6 @@ final class UserNoticeStore implements NoticeStoreInterface {
 		}
 
 		return $wpdb->get_blog_prefix( $context->site_id ) . "{$this->prefix}_notices";
-	}
-
-	/**
-	 * Returns the user's rows under the context's key, in the order they were written.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   NoticeContext $context The context.
-	 *
-	 * @return  list<mixed>
-	 */
-	protected function get_rows( NoticeContext $context ): array {
-		$rows = \get_user_meta( $context->owner, $this->get_meta_key( $context ), false );
-
-		return \is_array( $rows ) ? \array_values( $rows ) : array();
 	}
 
 	// endregion
