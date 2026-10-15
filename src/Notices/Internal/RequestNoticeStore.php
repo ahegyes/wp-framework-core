@@ -1,0 +1,139 @@
+<?php declare( strict_types=1 );
+
+namespace DeepWebSolutions\Framework\Notices\Internal;
+
+use DeepWebSolutions\Framework\Notices\Notice;
+use DeepWebSolutions\Framework\Notices\NoticeContext;
+use DeepWebSolutions\Framework\Notices\NoticeScope;
+use DeepWebSolutions\Framework\Notices\NoticeStoreInterface;
+use DeepWebSolutions\Framework\Notices\StoredNotice;
+use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
+
+\defined( 'ABSPATH' ) || exit;
+
+/**
+ * Keeps request notices in memory for the rest of the request, deleting an expired one when it reads it.
+ *
+ * @since   2.0.0
+ * @version 2.0.0
+ *
+ * @internal
+ */
+final class RequestNoticeStore implements NoticeStoreInterface {
+	// region FIELDS AND CONSTANTS
+
+	/**
+	 * The records, by notice id.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     array<string, StoredNotice>
+	 */
+	protected array $records = array();
+
+	// endregion
+
+	// region INHERITED METHODS
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @throws  InvalidArgumentException Thrown when the notice is not a request notice.
+	 */
+	#[\Override]
+	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
+		$this->check_scope( $context );
+		if ( $notice->scope !== $context->scope ) {
+			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a request context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
+		$this->records[ $notice->id ] = new StoredNotice( $notice, $context, NoticeRecords::now(), \wp_generate_uuid4() );
+
+		return $this->records[ $notice->id ];
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	#[\Override]
+	public function find( string $id, NoticeContext $context ): ?StoredNotice {
+		return \array_find( $this->all( $context ), static fn ( StoredNotice $record ): bool => $record->notice->id === $id );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	#[\Override]
+	public function all( NoticeContext $context ): array {
+		$this->check_scope( $context );
+		foreach ( $this->records as $record ) {
+			if ( NoticeRecords::is_expired( $record ) ) {
+				$this->consume( $record );
+			}
+		}
+
+		return NoticeRecords::sort( $this->records );
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	#[\Override]
+	public function consume( StoredNotice $observed ): bool {
+		$this->check_scope( $observed->context );
+		if ( ( $this->records[ $observed->notice->id ] ?? null )?->generation !== $observed->generation ) {
+			return false;
+		}
+
+		unset( $this->records[ $observed->notice->id ] );
+
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	#[\Override]
+	public function remove( string $id, NoticeContext $context ): void {
+		$this->check_scope( $context );
+		unset( $this->records[ $id ] );
+	}
+
+	// endregion
+
+	// region HELPERS
+
+	/**
+	 * Throws unless the context is the request's.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeContext $context The context.
+	 *
+	 * @throws  InvalidArgumentException Thrown when the context is of another scope.
+	 */
+	protected function check_scope( NoticeContext $context ): void {
+		if ( NoticeScope::Request !== $context->scope ) {
+			throw new InvalidArgumentException( "The request store keeps no {$context->scope->value} notices." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+	}
+
+	// endregion
+}
