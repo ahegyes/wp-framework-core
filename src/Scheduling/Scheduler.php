@@ -47,7 +47,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @param   string                 $group    The plugin's hook prefix, which names its Action Scheduler group and prefixes its WP-Cron schedules.
 	 * @param   list<BackendInterface> $backends Optional. The backends in order of preference for writes, which only tests replace. Default is Action Scheduler, then WP-Cron.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the group is not a letter followed by up to 189 letters, digits, underscores and hyphens.
+	 * @throws  InvalidArgumentException Thrown when the group is invalid.
 	 */
 	public function __construct(
 		string $group,
@@ -210,7 +210,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Returns true once init has fired and every loaded scheduler has initialized, outside a switched site, and otherwise an error with a developer notice.
+	 * Returns true when scheduling is ready, and otherwise an error with a developer notice.
 	 *
 	 * Action Scheduler initializes its store at init priority 1, so routing an earlier call to WP-Cron would split one hook across both schedulers.
 	 *

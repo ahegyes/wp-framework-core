@@ -323,7 +323,7 @@ final class OptionRows {
 	}
 
 	/**
-	 * Throws when the name is empty, surrounded by whitespace, which every options API function trims, or longer than the option_name column.
+	 * Throws when the options API or the option_name column would not keep the name exactly as given.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -339,7 +339,7 @@ final class OptionRows {
 	}
 
 	/**
-	 * Returns the value as the options table stores it, after checking the name and the value.
+	 * Returns the value as the options table stores it.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -433,7 +433,7 @@ final class OptionRows {
 			static function () use ( $name ): void {
 				\wp_cache_delete( $name, 'options' );
 				foreach ( array( 'notoptions', 'alloptions' ) as $list ) {
-					// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped, as core drops alloptions.
+					// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped.
 					$names = \wp_cache_get( $list, 'options' );
 					if ( \is_array( $names ) && \array_key_exists( $name, $names ) ) {
 						\wp_cache_delete( $list, 'options' );

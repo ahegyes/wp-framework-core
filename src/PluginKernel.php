@@ -10,7 +10,7 @@ use Psr\Container\ContainerInterface as PsrContainerInterface;
 /**
  * Constructs a plugin's enabled components through the container, then registers their hooks.
  *
- * The container must build any component class it is given and return one shared instance per entry, as an autowiring container such as PHP-DI does, because PSR-11 promises neither.
+ * The container must build any component class it is given and return one shared instance per entry, because PSR-11 promises neither.
  *
  * @since   2.0.0
  * @version 2.0.0

@@ -10,7 +10,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 /**
  * Keeps the content of the notices of one or more scopes, one record per notice id in each context.
  *
- * A store skips a record it cannot decode and leaves it in place. New capabilities arrive as separate interfaces that a store may also implement.
+ * A store skips a record it cannot decode and leaves it in place.
  *
  * @since   2.0.0
  * @version 2.0.0

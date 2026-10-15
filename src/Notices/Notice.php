@@ -20,7 +20,7 @@ final readonly class Notice {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The pattern a notice id matches: a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens.
+	 * The pattern every notice id matches.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

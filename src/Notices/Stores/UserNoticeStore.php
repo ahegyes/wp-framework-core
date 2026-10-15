@@ -18,7 +18,7 @@ use DeepWebSolutions\Framework\Storage\MetaRows;
 /**
  * Keeps user notices as user meta rows under a key prefixed for the notice's site, one row per notice.
  *
- * Saving adds a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain; reads return the newer and delete the older, and delete both once the newer has expired.
+ * Saving adds a row before it deletes the rows it replaces, and every delete names the exact row it read, so writes to different notices never collide and a concurrent replacement survives. When two saves of one notice race, both rows remain until a read keeps the newer and deletes the older.
  *
  * @since   2.0.0
  * @version 2.0.0

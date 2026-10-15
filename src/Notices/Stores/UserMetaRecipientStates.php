@@ -15,7 +15,7 @@ use DeepWebSolutions\Framework\Storage\MetaRows;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Keeps recipient states as user meta rows, one per notice a user has interacted with: under a key prefixed for the notice's site, or for a request notice the current site, and under an unprefixed network key for network notices.
+ * Keeps recipient states as user meta rows, one per notice a user has interacted with, under a per-site key or, for network notices, a network-wide key.
  *
  * Recording adds the new row before it deletes the rows it read for the same notice, so two concurrent records never delete each other's row; the newest row wins on read.
  *

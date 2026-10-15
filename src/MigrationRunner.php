@@ -392,7 +392,7 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Deletes the lock row only while it still holds this run's timestamp, so that a takeover's lock survives, and logs a warning when the delete fails, which leaves the lock to expire.
+	 * Deletes the lock row only while it still holds this run's timestamp, so that a takeover's lock survives.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -598,7 +598,7 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Returns whether the request's budget is spent, by time or by memory past 90% of the PHP limit.
+	 * Returns whether the request's time or memory budget is spent.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

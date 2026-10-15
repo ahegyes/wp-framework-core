@@ -20,7 +20,7 @@ final class NoticeRecords {
 	// region METHODS
 
 	/**
-	 * Returns the record as a row: the notice's row plus the record's generation and creation time.
+	 * Returns the record as a row.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

@@ -7,7 +7,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * One revision of one notice in one context, which recipient states are recorded against, so notices of the same id in other scopes, owners or networks never share a state.
+ * One revision of one notice in one context, which recipient states are recorded against, so notices of the same id in other contexts never share a state.
  *
  * @since   2.0.0
  * @version 2.0.0
