@@ -10,6 +10,7 @@ use DeepWebSolutions\Framework\Utilities\SystemClock;
 use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
+use function DeepWebSolutions\Framework\Shared\interpolate_log_message;
 use function DeepWebSolutions\Framework\Shared\parse_int;
 
 \defined( 'ABSPATH' ) || exit;
@@ -177,20 +178,7 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	public function run(): void {
 		$target = \count( $this->steps );
-		$stored = self::get_revision( $this->option );
-		if ( $stored > $target ) {
-			\update_option( $this->option, $target, true ); // A re-upgrade then re-runs the newer, convergent steps over the rollback-era data.
-			$this->logger->warning(
-				'The stored data revision {stored} is above the code\'s revision {target}, so it was written back.',
-				array(
-					'stored' => $stored,
-					'target' => $target,
-				)
-			);
-			return;
-		}
-
-		if ( $stored === $target || ! $this->lock() ) {
+		if ( self::get_revision( $this->option ) === $target || ! $this->lock() ) {
 			return;
 		}
 
@@ -198,6 +186,22 @@ final class MigrationRunner implements ComponentInterface {
 		try {
 			$stored_row = $this->read_revision();
 			$revision   = $stored_row ?? 0;
+			if ( $revision > $target ) {
+				$this->checkpoint( $target ); // A re-upgrade then re-runs the newer, convergent steps over the rollback-era data.
+				$this->log(
+					'warning',
+					'The stored data revision {stored} is above the code\'s revision {target}, so it was written back.',
+					array(
+						'stored' => $revision,
+						'target' => $target,
+					)
+				);
+				$revision = $target;
+			} elseif ( $this->took_over && \is_null( $this->get_error() ) ) {
+				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within 10 minutes.', $revision );
+				$this->log( 'warning', 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
+			}
+
 			if ( \is_null( $stored_row ) ) {
 				\add_option(
 					"{$this->option}_first_run",
@@ -210,16 +214,7 @@ final class MigrationRunner implements ComponentInterface {
 				);
 			}
 
-			if ( $this->took_over && \is_null( $this->get_error() ) ) {
-				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within 10 minutes.', $revision );
-				$this->logger->warning( 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
-			}
-
 			while ( $revision < $target ) {
-				if ( ! $this->holds_lock( $revision ) ) {
-					return;
-				}
-
 				$step = $this->steps[ $revision ];
 				if ( $this->is_out_of_budget() || ( $step instanceof BatchedMigrationStepInterface && ! \doing_action( $this->get_hook() ) ) ) {
 					$this->pause();
@@ -227,23 +222,24 @@ final class MigrationRunner implements ComponentInterface {
 				}
 
 				$this->deadline ??= $this->get_time() + $this->batch_time_limit;
+
+				$finished = true;
 				if ( $step instanceof BatchedMigrationStepInterface ) {
-					$more = $step->process_batch();
-					$this->clear_error();
-					if ( $more ) {
-						\wp_cache_flush_runtime();
-						continue;
-					}
+					$finished = ! $step->process_batch();
+					\wp_cache_flush_runtime();
 				} else {
 					$step();
 				}
 
+				// A run whose lock was taken over must leave the revision and the error row to the run that holds it now.
 				if ( ! $this->holds_lock( $revision ) ) {
 					return;
 				}
 
-				$this->checkpoint( $revision + 1 );
-				++$revision;
+				if ( $finished ) {
+					$this->checkpoint( $revision + 1 );
+					++$revision;
+				}
 				$this->clear_error();
 			}
 		} catch ( \Throwable $exception ) {
@@ -352,7 +348,7 @@ final class MigrationRunner implements ComponentInterface {
 		// phpcs:enable WordPress.DB.DirectDatabaseQuery
 
 		if ( false === $taken ) {
-			$this->logger->warning( 'Could not take the data migration lock: {error}', array( 'error' => $wpdb->last_error ) );
+			$this->log( 'warning', 'Could not take the data migration lock: {error}', array( 'error' => $wpdb->last_error ) );
 		}
 
 		return 1 === $taken;
@@ -375,7 +371,7 @@ final class MigrationRunner implements ComponentInterface {
 			return true;
 		}
 
-		$this->logger->warning( 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
+		$this->log( 'warning', 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
 
 		return false;
 	}
@@ -398,7 +394,7 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Releases the lock, then schedules the runner's hook, so that the next run never finds the lock still held by this one.
+	 * Releases the lock, then schedules the runner's hook, so that the continuation can take the lock this run held.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -408,7 +404,7 @@ final class MigrationRunner implements ComponentInterface {
 
 		$scheduled = $this->scheduler->enqueue( new ScheduledHook( $this->get_hook() ) );
 		if ( true !== $scheduled ) {
-			$this->logger->warning( 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
+			$this->log( 'warning', 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
 		}
 	}
 
@@ -423,15 +419,18 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  int<0, max>|null
 	 */
 	protected function read_revision(): ?int {
-		$wpdb  = $this->wpdb;
-		$value = $wpdb->get_var( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $this->option ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A cached value may predate another request's checkpoint.
+		// A row rather than a single value, because wpdb::get_var() returns null for an empty string as it does for a missing row.
+		$wpdb = $this->wpdb;
+		$row  = $wpdb->get_row( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $this->option ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A cached value may predate another request's checkpoint.
 		if ( '' !== $wpdb->last_error ) {
 			throw new RuntimeException( "Could not read the stored data revision: $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		if ( \is_null( $value ) ) {
+		if ( ! \is_array( $row ) ) {
 			return null;
 		}
+
+		$value = isset( $row['option_value'] ) && \is_string( $row['option_value'] ) ? $row['option_value'] : '';
 
 		$revision = parse_int( $value );
 		if ( \is_null( $revision ) || $revision < 0 ) {
@@ -475,23 +474,43 @@ final class MigrationRunner implements ComponentInterface {
 	 * @throws  \Throwable Thrown in a local or development environment.
 	 */
 	protected function fail( \Throwable $exception, ?int $revision ): void {
-		$this->record_error( $exception->getMessage(), $revision );
-		try {
-			$this->logger->error(
-				'Data migration failed: {message}',
-				array(
-					'message'   => $exception->getMessage(),
-					'exception' => $exception,
-				)
-			);
-		} catch ( \Throwable $logging_failure ) {
-			// A broken logger must not hide the failure.
-			\error_log( "[$this->option] Data migration failed: {$exception->getMessage()}\n$exception\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
+		if ( $this->holds_lock( $revision ?? 0 ) ) {
+			$this->record_error( $exception->getMessage(), $revision );
 		}
+
+		$this->log(
+			'error',
+			'Data migration failed: {message}',
+			array(
+				'message'   => $exception->getMessage(),
+				'exception' => $exception,
+			)
+		);
 
 		if ( \in_array( \wp_get_environment_type(), array( 'local', 'development' ), true ) ) {
 			$this->unlock(); // Releasing the lock lets the fixed step run again on the next request.
 			throw $exception;
+		}
+	}
+
+	/**
+	 * Logs a record, through the PHP error log when the logger throws.
+	 *
+	 * A broken logger must neither hide a failure nor break the request that reports it.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string               $level   The PSR-3 level.
+	 * @param   string               $message The message with placeholders.
+	 * @param   array<string, mixed> $context The values to interpolate, and an optional throwable under exception.
+	 */
+	protected function log( string $level, string $message, array $context ): void {
+		try {
+			$this->logger->log( $level, $message, $context );
+		} catch ( \Throwable $logging_failure ) {
+			$exception = $context['exception'] ?? null;
+			\error_log( "[$this->option.$level] " . interpolate_log_message( $message, $context ) . ( $exception instanceof \Throwable ? "\n$exception" : '' ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
 		}
 	}
 
