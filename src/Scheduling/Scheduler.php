@@ -175,23 +175,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function unschedule( ScheduledHook $hook ): true|\WP_Error {
-		return $this->write(
-			__METHOD__,
-			function () use ( $hook ): true|\WP_Error {
-				$cleared = $this->clear( $hook );
-				if ( true !== $cleared ) {
-					return $cleared;
-				}
-
-				$census = $this->census( $hook );
-
-				return match ( true ) {
-					0 < $census['running_recurring'] => new \WP_Error( 'scheduler_running', "A recurring occurrence of hook '$hook->hook' is running and queues its successor when it completes." ),
-					0 < $census['pending']           => new \WP_Error( 'scheduler_failed', "Hook '$hook->hook' still has pending invocations." ),
-					default                          => true,
-				};
-			}
-		);
+		return $this->write( __METHOD__, fn (): true|\WP_Error => $this->clear( $hook ) );
 	}
 
 	/**
@@ -278,7 +262,9 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	}
 
 	/**
-	 * Cancels every pending invocation of the hook on every readable backend.
+	 * Cancels every pending invocation of the hook on every readable backend, then checks that none is left.
+	 *
+	 * Action Scheduler reports no failed cancellation, so only the check catches one.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -295,7 +281,13 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			}
 		}
 
-		return true;
+		$census = $this->census( $hook );
+
+		return match ( true ) {
+			0 < $census['running_recurring'] => new \WP_Error( 'scheduler_running', "A recurring occurrence of hook '$hook->hook' is running and queues its successor when it completes." ),
+			0 < $census['pending']           => new \WP_Error( 'scheduler_failed', "Hook '$hook->hook' still has pending invocations." ),
+			default                          => true,
+		};
 	}
 
 	/**
