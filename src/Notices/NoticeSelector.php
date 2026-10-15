@@ -90,7 +90,7 @@ final class NoticeSelector {
 	}
 
 	/**
-	 * Records that the current user was shown a one-shot notice, consuming it unless other users still need to see it.
+	 * Records that the current user was shown a one-shot notice, consuming it unless other viewers still need to see it.
 	 *
 	 * A failed write is logged, so the notice may show again.
 	 *
@@ -106,7 +106,7 @@ final class NoticeSelector {
 		}
 
 		try {
-			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope ) {
+			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope || $notice->is_shared() ) {
 				$this->stores[ $notice->scope->value ]->consume( $record );
 			} else {
 				$this->states->record( new NoticeIdentity( $record->context, $notice->id ), \get_current_user_id(), RecipientState::Delivered );
@@ -159,7 +159,7 @@ final class NoticeSelector {
 			return false;
 		}
 
-		$state = $this->states->get( new NoticeIdentity( $record->context, $notice->id ), $user_id );
+		$state = $notice->is_shared() ? null : $this->states->get( new NoticeIdentity( $record->context, $notice->id ), $user_id );
 		if ( RecipientState::Dismissed === $state || ( RecipientState::Delivered === $state && ! $notice->persistent ) ) {
 			return false;
 		}

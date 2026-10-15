@@ -246,18 +246,21 @@ final class AdminNotices implements ComponentInterface {
 				'callback'            => array( $this, 'rest_dismiss' ),
 				'permission_callback' => 'is_user_logged_in',
 				'args'                => array(
-					'scope' => array(
+					'scope'      => array(
 						'type'     => 'string',
 						'enum'     => \array_column( NoticeScope::cases(), 'value' ),
 						'required' => true,
 					),
-					'id'    => array(
+					'id'         => array(
 						'type'     => 'string',
 						'required' => true,
 					),
-					'nonce' => array(
+					'nonce'      => array(
 						'type'     => 'string',
 						'required' => true,
+					),
+					'generation' => array(
+						'type' => 'string',
 					),
 				),
 			)
@@ -300,7 +303,8 @@ final class AdminNotices implements ComponentInterface {
 						body: JSON.stringify( {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
-							nonce: notice.getAttribute( 'data-notice-nonce' )
+							nonce: notice.getAttribute( 'data-notice-nonce' ),
+							generation: notice.getAttribute( 'data-notice-generation' ) || undefined
 						} )
 					} ).then( function ( response ) {
 						if ( ! response.ok ) {
@@ -316,24 +320,27 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Records the current user's dismissal of a notice shown to them.
+	 * Dismisses a notice shown to the current user, deleting it when it is shared and otherwise recording the user's dismissal.
+	 *
+	 * A stored notice is dismissed only while it is the record that was shown, so a notice saved again in between shows on the next page.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id and nonce.
+	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id, nonce and, for a stored notice, the generation shown.
 	 *
 	 * @return  \WP_REST_Response|\WP_Error
 	 */
 	public function rest_dismiss( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		$params  = $request->get_params();
-		$scope   = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
-		$id      = $params['id'] ?? null;
-		$nonce   = $params['nonce'] ?? null;
-		$user_id = \get_current_user_id();
+		$params     = $request->get_params();
+		$scope      = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
+		$id         = $params['id'] ?? null;
+		$nonce      = $params['nonce'] ?? null;
+		$generation = $params['generation'] ?? null;
+		$user_id    = \get_current_user_id();
 
-		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
-			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or nonce is invalid.', array( 'status' => 400 ) );
+		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) || ! ( null === $generation || \is_string( $generation ) ) ) {
+			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id, nonce or generation is invalid.', array( 'status' => 400 ) );
 		}
 
 		$identity = new NoticeIdentity( NoticeContext::current( $scope ), $id );
@@ -342,10 +349,11 @@ final class AdminNotices implements ComponentInterface {
 		}
 
 		try {
+			$record = null;
 			if ( NoticeScope::Request !== $scope ) {
 				$record = $this->stores[ $scope->value ]->find( $id, $identity->context );
-				if ( null === $record ) {
-					return new \WP_Error( 'rest_notice_invalid_id', 'No notice has that id.', array( 'status' => 404 ) );
+				if ( null === $record || $generation !== $record->generation ) {
+					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id and generation.', array( 'status' => 404 ) );
 				}
 
 				$notice = $record->notice;
@@ -354,7 +362,9 @@ final class AdminNotices implements ComponentInterface {
 				}
 			}
 
-			$changed = $this->states->record( $identity, $user_id, RecipientState::Dismissed );
+			$changed = null !== $record && $record->notice->is_shared()
+				? $this->stores[ $scope->value ]->consume( $record )
+				: $this->states->record( $identity, $user_id, RecipientState::Dismissed );
 		} catch ( \Throwable $exception ) {
 			$this->logger->error(
 				'Could not dismiss a {scope} notice: {message}',
@@ -370,7 +380,7 @@ final class AdminNotices implements ComponentInterface {
 
 		if ( $changed ) {
 			/**
-			 * Fires when a user's dismissal changed their state for a notice.
+			 * Fires when a user's dismissal takes effect, deleting a shared notice or hiding any other for that user.
 			 *
 			 * @since   2.0.0
 			 * @version 2.0.0
@@ -391,7 +401,7 @@ final class AdminNotices implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Prints a notice, with a dismissal nonce when it is persistent and dismissible.
+	 * Prints a notice, with what its dismissal needs when it is persistent and dismissible.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -408,6 +418,9 @@ final class AdminNotices implements ComponentInterface {
 		if ( $notice->persistent && $notice->dismissible ) {
 			$attributes['data-notice-nonce'] = \wp_create_nonce( $this->get_nonce_action( new NoticeIdentity( $record->context, $notice->id ) ) );
 			$this->needs_dismiss_script      = true;
+			if ( NoticeScope::Request !== $notice->scope ) {
+				$attributes['data-notice-generation'] = $record->generation;
+			}
 		}
 
 		/**

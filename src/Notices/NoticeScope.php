@@ -28,7 +28,7 @@ enum NoticeScope: string {
 	case User = 'user';
 
 	/**
-	 * One site, for each viewer who holds the notice's capability.
+	 * One site, seen by the users who hold the notice's capability.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -36,7 +36,7 @@ enum NoticeScope: string {
 	case Site = 'site';
 
 	/**
-	 * One network, for each viewer who holds the notice's capability.
+	 * One network, seen by the users who hold the notice's capability.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
