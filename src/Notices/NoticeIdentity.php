@@ -46,7 +46,22 @@ final readonly class NoticeIdentity {
 	// region METHODS
 
 	/**
-	 * Returns the identity as a key of scope, owner, id and revision, where a user notice's owner is its site and user.
+	 * Returns the key of the notice the identity names: its scope, owner and id, where a user notice's owner is its site and user.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  string
+	 */
+	public function to_notice_key(): string {
+		$context = $this->context;
+		$owner   = NoticeScope::User === $context->scope ? "$context->site_id:$context->owner" : $context->owner;
+
+		return "{$context->scope->value}:$owner:$this->id";
+	}
+
+	/**
+	 * Returns the identity as the notice's key followed by the revision.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -54,10 +69,7 @@ final readonly class NoticeIdentity {
 	 * @return  string
 	 */
 	public function to_key(): string {
-		$context = $this->context;
-		$owner   = NoticeScope::User === $context->scope ? "$context->site_id:$context->owner" : $context->owner;
-
-		return "{$context->scope->value}:$owner:$this->id@$this->revision";
+		return "{$this->to_notice_key()}@$this->revision";
 	}
 
 	// endregion
