@@ -76,14 +76,14 @@ final class AdminNotices implements ComponentInterface {
 	protected NoticeSelector $selector;
 
 	/**
-	 * Whether this request showed a ticketed notice.
+	 * Whether this request showed a notice that carries a dismissal nonce.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @var     bool
 	 */
-	protected bool $ticketed = false;
+	protected bool $needs_dismiss_script = false;
 
 	// endregion
 
@@ -245,16 +245,16 @@ final class AdminNotices implements ComponentInterface {
 				'callback'            => array( $this, 'rest_dismiss' ),
 				'permission_callback' => 'is_user_logged_in',
 				'args'                => array(
-					'scope'  => array(
+					'scope' => array(
 						'type'     => 'string',
 						'enum'     => \array_column( NoticeScope::cases(), 'value' ),
 						'required' => true,
 					),
-					'id'     => array(
+					'id'    => array(
 						'type'     => 'string',
 						'required' => true,
 					),
-					'ticket' => array(
+					'nonce' => array(
 						'type'     => 'string',
 						'required' => true,
 					),
@@ -264,21 +264,21 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Prints the script that posts dismissals, when this request showed a ticketed notice.
+	 * Prints the script that posts dismissals, when this request showed a notice that carries a dismissal nonce.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 */
 	public function print_dismiss_script(): void {
-		if ( ! $this->ticketed ) {
+		if ( ! $this->needs_dismiss_script ) {
 			return;
 		}
 
 		$settings = \wp_json_encode(
 			array(
-				'prefix' => $this->prefix,
-				'url'    => \rest_url( "{$this->get_rest_namespace()}/notices/dismissals" ),
-				'nonce'  => \wp_create_nonce( 'wp_rest' ),
+				'prefix'    => $this->prefix,
+				'url'       => \rest_url( "{$this->get_rest_namespace()}/notices/dismissals" ),
+				'restNonce' => \wp_create_nonce( 'wp_rest' ),
 			)
 		);
 
@@ -287,7 +287,7 @@ final class AdminNotices implements ComponentInterface {
 			( function ( settings ) {
 				document.addEventListener( 'click', function ( event ) {
 					var button = event.target instanceof Element ? event.target.closest( '.notice-dismiss' ) : null;
-					var notice = button ? button.closest( '[data-notice-ticket]' ) : null;
+					var notice = button ? button.closest( '[data-notice-nonce]' ) : null;
 					if ( ! notice || notice.getAttribute( 'data-notices' ) !== settings.prefix ) {
 						return;
 					}
@@ -295,11 +295,11 @@ final class AdminNotices implements ComponentInterface {
 					fetch( settings.url, {
 						method: 'POST',
 						credentials: 'include',
-						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': settings.nonce },
+						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': settings.restNonce },
 						body: JSON.stringify( {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
-							ticket: notice.getAttribute( 'data-notice-ticket' )
+							nonce: notice.getAttribute( 'data-notice-nonce' )
 						} )
 					} ).then( function ( response ) {
 						if ( ! response.ok ) {
@@ -315,12 +315,12 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Records the current user's dismissal of a notice they were shown with a ticket.
+	 * Records the current user's dismissal of a notice shown to them.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id and ticket.
+	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id and nonce.
 	 *
 	 * @return  \WP_REST_Response|\WP_Error
 	 */
@@ -328,16 +328,16 @@ final class AdminNotices implements ComponentInterface {
 		$params  = $request->get_params();
 		$scope   = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
 		$id      = $params['id'] ?? null;
-		$ticket  = $params['ticket'] ?? null;
+		$nonce   = $params['nonce'] ?? null;
 		$user_id = \get_current_user_id();
 
-		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $ticket ) ) {
-			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or ticket is invalid.', array( 'status' => 400 ) );
+		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
+			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or nonce is invalid.', array( 'status' => 400 ) );
 		}
 
 		$identity = new NoticeIdentity( NoticeContext::current( $scope ), $id );
-		if ( false === \wp_verify_nonce( $ticket, $this->get_ticket_action( $identity ) ) ) {
-			return new \WP_Error( 'rest_forbidden', 'The ticket does not match a notice shown to this user.', array( 'status' => 403 ) );
+		if ( false === \wp_verify_nonce( $nonce, $this->get_nonce_action( $identity ) ) ) {
+			return new \WP_Error( 'rest_forbidden', 'The nonce does not match a notice shown to this user.', array( 'status' => 403 ) );
 		}
 
 		try {
@@ -390,7 +390,7 @@ final class AdminNotices implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Prints a notice, with a dismissal ticket when it is persistent and dismissible.
+	 * Prints a notice, with a dismissal nonce when it is persistent and dismissible.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -405,8 +405,8 @@ final class AdminNotices implements ComponentInterface {
 			'data-notice-id'    => $notice->id,
 		);
 		if ( $notice->persistent && $notice->dismissible ) {
-			$attributes['data-notice-ticket'] = \wp_create_nonce( $this->get_ticket_action( new NoticeIdentity( $record->context, $notice->id ) ) );
-			$this->ticketed                   = true;
+			$attributes['data-notice-nonce'] = \wp_create_nonce( $this->get_nonce_action( new NoticeIdentity( $record->context, $notice->id ) ) );
+			$this->needs_dismiss_script      = true;
 		}
 
 		/**
@@ -445,7 +445,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the nonce action of the identity's dismissal ticket.
+	 * Returns the action of the identity's dismissal nonce.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -454,7 +454,7 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @return  string
 	 */
-	protected function get_ticket_action( NoticeIdentity $identity ): string {
+	protected function get_nonce_action( NoticeIdentity $identity ): string {
 		return "{$this->prefix}_dismiss|{$identity->to_key()}";
 	}
 
