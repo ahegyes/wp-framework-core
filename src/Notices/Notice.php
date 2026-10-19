@@ -20,7 +20,7 @@ final readonly class Notice {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The pattern every notice id matches.
+	 * The format every notice id matches, which consumers check their ids against.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
