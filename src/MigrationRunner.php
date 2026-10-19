@@ -13,8 +13,6 @@ use DeepWebSolutions\Framework\Utilities\SystemClock;
 use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
-use function DeepWebSolutions\Framework\Shared\interpolate_log_message;
-
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -509,7 +507,7 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Logs a record, through the PHP error log when the logger throws.
+	 * Logs a record, or writes it raw to the PHP error log when the logger throws.
 	 *
 	 * A broken logger must neither hide a failure nor break the request that reports it.
 	 *
@@ -525,7 +523,8 @@ final class MigrationRunner implements ComponentInterface {
 			$this->logger->log( $level, $message, $context );
 		} catch ( \Throwable $logging_failure ) {
 			$exception = $context['exception'] ?? null;
-			\error_log( "[$this->option.$level] " . interpolate_log_message( $message, $context ) . ( $exception instanceof \Throwable ? "\n$exception" : '' ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
+			unset( $context['exception'] );
+			\error_log( "[$this->option.$level] $message " . \wp_json_encode( $context ) . ( $exception instanceof \Throwable ? "\n$exception" : '' ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
 		}
 	}
 
