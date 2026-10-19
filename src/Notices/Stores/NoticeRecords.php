@@ -17,6 +17,18 @@ use DeepWebSolutions\Framework\Notices\StoredNotice;
  * @internal
  */
 final class NoticeRecords {
+	// region MAGIC METHODS
+
+	/**
+	 * Constructor.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	protected function __construct() {}
+
+	// endregion
+
 	// region METHODS
 
 	/**
