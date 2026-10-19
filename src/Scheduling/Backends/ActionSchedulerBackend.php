@@ -5,8 +5,6 @@ namespace DeepWebSolutions\Framework\Scheduling\Backends;
 use DeepWebSolutions\Framework\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
 
-use function DeepWebSolutions\Framework\Shared\parse_int;
-
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -192,7 +190,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 		foreach ( $actions as $action ) {
 			$schedule = $action instanceof \ActionScheduler_Action ? $action->get_schedule() : null;
 			if ( ! \is_null( $schedule ) && $schedule->is_recurring() ) {
-				$intervals[] = $schedule instanceof \ActionScheduler_IntervalSchedule ? \max( 0, parse_int( $schedule->get_recurrence() ) ?? 0 ) : 0;
+				$intervals[] = $schedule instanceof \ActionScheduler_IntervalSchedule ? \max( 0, \filter_var( $schedule->get_recurrence(), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) : 0;
 			}
 		}
 

@@ -14,7 +14,6 @@ use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 use function DeepWebSolutions\Framework\Shared\interpolate_log_message;
-use function DeepWebSolutions\Framework\Shared\parse_int;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -147,7 +146,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  int<0, max>
 	 */
 	public static function get_revision( string $option ): int {
-		return \max( 0, parse_int( \get_option( $option, 0 ) ) ?? 0 );
+		return \max( 0, \filter_var( \get_option( $option, 0 ), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 );
 	}
 
 	// endregion
@@ -352,7 +351,7 @@ final class MigrationRunner implements ComponentInterface {
 			if ( \is_null( $this->lock ) ) {
 				// A lock row that holds no timestamp counts as expired, so a corrupt row never blocks the migrations.
 				$held = $this->rows->get( $this->get_lock_name() );
-				if ( ! \is_null( $held ) && ( parse_int( $held->raw ) ?? 0 ) < $now - self::LOCK_TTL ) {
+				if ( ! \is_null( $held ) && ( \filter_var( $held->raw, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) < $now - self::LOCK_TTL ) {
 					$this->lock      = $this->rows->replace( $held, $now );
 					$this->took_over = ! \is_null( $this->lock );
 				}
@@ -448,7 +447,7 @@ final class MigrationRunner implements ComponentInterface {
 		}
 
 		$value    = $row->raw;
-		$revision = parse_int( $value );
+		$revision = \filter_var( $value, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE );
 		if ( \is_null( $revision ) || $revision < 0 ) {
 			throw new RuntimeException( "The stored data revision '$value' is not a non-negative integer." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
@@ -471,7 +470,7 @@ final class MigrationRunner implements ComponentInterface {
 			throw new RuntimeException( "Could not record schema revision '$revision'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		if ( $revision > ( parse_int( \get_option( "{$this->option}_high_water", 0 ) ) ?? 0 ) ) {
+		if ( $revision > ( \filter_var( \get_option( "{$this->option}_high_water", 0 ), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) ) {
 			\update_option( "{$this->option}_high_water", $revision, false );
 		}
 	}

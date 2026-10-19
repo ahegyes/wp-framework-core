@@ -6,6 +6,7 @@
   "homepage": "https://github.com/ahegyes/wordpress-framework",
   "require": {
     "php": ">=8.5",
+    "ext-filter": "*",
     "ahegyes/wp-framework-shared": "^2.0",
     "psr/clock": "^1",
     "psr/container": "^2",

@@ -6,8 +6,6 @@ use DeepWebSolutions\Framework\ComponentInterface;
 use DeepWebSolutions\Framework\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
 
-use function DeepWebSolutions\Framework\Shared\parse_int;
-
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -95,7 +93,7 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 
 			++$pending;
 			if ( false !== ( $event['schedule'] ?? false ) ) {
-				$intervals[] = \max( 0, parse_int( $event['interval'] ?? 0 ) ?? 0 );
+				$intervals[] = \max( 0, \filter_var( $event['interval'] ?? 0, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 );
 			}
 		}
 
