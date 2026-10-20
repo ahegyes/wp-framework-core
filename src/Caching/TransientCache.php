@@ -179,8 +179,20 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function getMultiple( iterable $keys, mixed $default = null ): iterable { // phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound -- PSR-16 names the parameter, and callers may pass it by name.
+		$keys = $this->get_keys( $keys );
+
+		// On the options table, get_transient() reads each entry's rows in a query of its own.
+		if ( ! \wp_using_ext_object_cache() && ! \wp_installing() ) {
+			$options = array();
+			foreach ( $keys as $key ) {
+				$name = $this->get_name( $key );
+				\array_push( $options, "_transient_$name", "_transient_timeout_$name" );
+			}
+			\wp_prime_option_caches( $options );
+		}
+
 		$values = array();
-		foreach ( $this->get_keys( $keys ) as $key ) {
+		foreach ( $keys as $key ) {
 			$values[ $key ] = $this->get( $key, $default );
 		}
 
@@ -265,10 +277,15 @@ final class TransientCache implements PsrCacheInterface {
 	 * @return  array{mixed}|null
 	 */
 	protected function read( string $key ): ?array {
-		$entry = \get_transient( $this->get_name( $key ) );
+		$name       = $this->get_name( $key );
+		$generation = $this->generation->get();
+		if ( \is_null( $generation ) ) {
+			return null;
+		}
 
 		// Other code storing under the name, or a filter, can return something that is not an entry.
-		if ( ! \is_array( $entry ) || 2 !== \count( $entry ) || ! \array_key_exists( 'value', $entry ) || ! \array_key_exists( 'generation', $entry ) ) {
+		$entry = \get_transient( $name );
+		if ( ! \is_array( $entry ) || 2 !== \count( $entry ) || ! \array_key_exists( 'value', $entry ) || ( $entry['generation'] ?? null ) !== $generation ) {
 			return null;
 		}
 
