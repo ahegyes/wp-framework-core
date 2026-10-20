@@ -110,7 +110,12 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function set( string $key, mixed $value, null|int|\DateInterval $ttl = null ): bool {
-		$name       = $this->get_name( $key );
+		$name     = $this->get_name( $key );
+		$lifetime = $this->get_lifetime( $ttl );
+		if ( $lifetime <= 0 ) {
+			return $this->delete( $key );
+		}
+
 		$generation = $this->generation->get() ?? $this->generation->advance();
 		if ( \is_null( $generation ) ) {
 			return false;
@@ -121,7 +126,8 @@ final class TransientCache implements PsrCacheInterface {
 			'generation' => $generation,
 		);
 
-		return \set_transient( $name, $entry, self::DEFAULT_TTL );
+		// set_transient() also returns false when the store already holds the entry.
+		return \set_transient( $name, $entry, $lifetime ) || \maybe_serialize( \get_transient( $name ) ) === \maybe_serialize( $entry );
 	}
 
 	/**
@@ -132,7 +138,19 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function delete( string $key ): bool {
-		return \delete_transient( $this->get_name( $key ) );
+		$name = $this->get_name( $key );
+		if ( \delete_transient( $name ) ) {
+			return true;
+		}
+
+		if ( \wp_using_ext_object_cache() || \wp_installing() ) {
+			return false === \get_transient( $name );
+		}
+
+		// An absent entry and a failed delete both make delete_transient() return false, and delete_option() marks the option absent in either case, so only the query error tells them apart.
+		$wpdb = $GLOBALS['wpdb'] ?? null;
+
+		return ! ( $wpdb instanceof \wpdb && '' !== $wpdb->last_error );
 	}
 
 	/**
@@ -255,6 +273,26 @@ final class TransientCache implements PsrCacheInterface {
 		}
 
 		return array( $entry['value'] );
+	}
+
+	/**
+	 * Returns the lifetime in seconds that the TTL gives an entry stored now.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   null|int|\DateInterval $ttl The TTL, where null is a day.
+	 *
+	 * @return  int
+	 */
+	protected function get_lifetime( null|int|\DateInterval $ttl ): int {
+		if ( ! $ttl instanceof \DateInterval ) {
+			return $ttl ?? self::DEFAULT_TTL;
+		}
+
+		$now = new \DateTimeImmutable( '@' . \time() );
+
+		return $now->add( $ttl )->getTimestamp() - $now->getTimestamp();
 	}
 
 	/**
