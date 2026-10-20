@@ -10,7 +10,8 @@
     "ahegyes/wp-framework-shared": "^2.0",
     "psr/clock": "^1",
     "psr/container": "^2",
-    "psr/log": "^3"
+    "psr/log": "^3",
+    "psr/simple-cache": "^3"
   },
   "autoload": {
     "psr-4": {
