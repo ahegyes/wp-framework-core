@@ -9,9 +9,9 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Grants a plugin's capabilities to the roles that exist on each site, and records each grant in a ledger, so that a role created later still receives them.
+ * Grants a plugin's capabilities to the roles that exist on each site, and records each grant in a ledger, so that a role created later still receives them and a pair the plugin stops declaring is revoked.
  *
- * WP_Roles::add_cap() does nothing for a missing role and core fires no action when a role is added, so a grant made once, at install, never reaches a role that appears afterwards.
+ * WP_Roles::add_cap() does nothing for a missing role and core fires no action when a role is added, so a grant made once, at install, never reaches a role that appears afterwards. A ledgered pair that its role no longer holds, or holds as denied, was changed by hand and is never granted again.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -76,6 +76,7 @@ final class CapabilityGrants implements ComponentInterface {
 	#[\Override]
 	public function register_hooks(): void {
 		\add_action( 'wp_loaded', array( $this, 'run' ) );
+		\add_action( 'updated_option', array( $this, 'forget_deleted_roles' ), 10, 3 );
 	}
 
 	// endregion
@@ -83,7 +84,7 @@ final class CapabilityGrants implements ComponentInterface {
 	// region METHODS
 
 	/**
-	 * Grants each declared capability that its role lacks and the ledger does not list, unless nothing it depends on changed since the last run.
+	 * Revokes each ledgered pair no longer declared and grants each declared pair that its role lacks and the ledger does not list, unless nothing either depends on changed since the last run.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -96,7 +97,22 @@ final class CapabilityGrants implements ComponentInterface {
 			return;
 		}
 
-		$ledger = self::get_pairs( \is_array( $row ) ? $row['grants'] ?? null : null );
+		$ledger = array();
+		foreach ( self::get_pairs( \is_array( $row ) ? $row['grants'] ?? null : null ) as $role => $caps ) {
+			$object = $roles->get_role( $role );
+			if ( \is_null( $object ) ) {
+				continue;
+			}
+
+			foreach ( $caps as $cap ) {
+				if ( \in_array( $cap, $this->grants[ $role ] ?? array(), true ) ) {
+					$ledger[ $role ][] = $cap;
+				} elseif ( (bool) ( $object->capabilities[ $cap ] ?? false ) ) {
+					$object->remove_cap( $cap );
+				}
+			}
+		}
+
 		foreach ( $this->grants as $role => $caps ) {
 			$object = $roles->get_role( $role );
 			if ( \is_null( $object ) ) {
@@ -117,6 +133,45 @@ final class CapabilityGrants implements ComponentInterface {
 				'v'           => 1,
 				'fingerprint' => $fingerprint,
 				'grants'      => $ledger,
+			),
+			true
+		);
+	}
+
+	// endregion
+
+	// region HOOKS
+
+	/**
+	 * Forgets the grants of each declared role that a write of the site's roles row deletes, so that the role is granted them again once it exists anew.
+	 *
+	 * WooCommerce's Reset capabilities tool deletes and recreates its roles within one request, which leaves the role names that the next run compares unchanged.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $option    The name of the option written.
+	 * @param   mixed  $old_value The option's previous value.
+	 * @param   mixed  $value     The option's new value.
+	 */
+	public function forget_deleted_roles( string $option, mixed $old_value, mixed $value ): void {
+		$wpdb = $GLOBALS['wpdb'] ?? null;
+		if ( ! $wpdb instanceof \wpdb || $wpdb->get_blog_prefix() . 'user_roles' !== $option || ! \is_array( $old_value ) ) {
+			return;
+		}
+
+		$deleted = \array_diff_key( \array_intersect_key( $old_value, $this->grants ), \is_array( $value ) ? $value : array() );
+		$row     = \get_option( $this->ledger_option );
+		if ( array() === $deleted || ! \is_array( $row ) ) {
+			return;
+		}
+
+		\update_option(
+			$this->ledger_option,
+			array(
+				'v'           => 1,
+				'fingerprint' => '',
+				'grants'      => \array_diff_key( self::get_pairs( $row['grants'] ?? null ), $deleted ),
 			),
 			true
 		);
