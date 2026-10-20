@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Grants a plugin's capabilities to the roles that exist on each site, and records each grant in a ledger, so that a role created later still receives them and a pair the plugin stops declaring is revoked.
  *
- * WP_Roles::add_cap() does nothing for a missing role and core fires no action when a role is added, so a grant made once, at install, never reaches a role that appears afterwards. A ledgered pair that its role no longer holds, or holds as denied, was changed by hand and is never granted again.
+ * WP_Roles::add_cap() does nothing for a missing role and core fires no action when a role is added, so a grant made once, at install, never reaches a role that appears afterwards.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -88,7 +88,7 @@ final class CapabilityGrants implements ComponentInterface {
 	/**
 	 * Revokes each ledgered pair no longer declared and grants each declared pair that its role lacks and the ledger does not list, once the declaration or the declared roles have changed since the last complete run.
 	 *
-	 * A change the stored roles row does not keep is logged and made again on the next request.
+	 * A ledgered pair that its role no longer holds, or holds as denied, was changed by hand, so it is never granted again.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -101,43 +101,45 @@ final class CapabilityGrants implements ComponentInterface {
 			return;
 		}
 
+		// WP_Roles::add_cap() and remove_cap() change the roles array but not the role objects, so the array holds what the request has stored.
+		$owned = $row['grants'];
+		foreach ( $row['pending'] as $role => $caps ) {
+			foreach ( $caps as $cap ) {
+				// A pending pair that its role holds was granted by a run that did not finish.
+				if ( true === ( self::get_capabilities( $roles->roles, $role )[ $cap ] ?? null ) && ! \in_array( $cap, $owned[ $role ] ?? array(), true ) ) {
+					$owned[ $role ][] = $cap;
+				}
+			}
+		}
+
 		$ledger  = array();
 		$revoked = array();
-		foreach ( $row['grants'] as $role => $caps ) {
-			$object = $roles->get_role( $role );
-			if ( \is_null( $object ) ) {
+		foreach ( $owned as $role => $caps ) {
+			$held = self::get_capabilities( $roles->roles, $role );
+			if ( \is_null( $held ) ) {
 				continue;
 			}
 
 			foreach ( $caps as $cap ) {
 				if ( \in_array( $cap, $this->grants[ $role ] ?? array(), true ) ) {
 					$ledger[ $role ][] = $cap;
-				} elseif ( (bool) ( $object->capabilities[ $cap ] ?? false ) ) {
-					$object->remove_cap( $cap );
+				} elseif ( (bool) ( $held[ $cap ] ?? false ) ) {
+					$roles->get_role( $role )?->remove_cap( $cap );
 					$revoked[ $role ][] = $cap;
 				}
 			}
 		}
 
-		// A pending pair is one an interrupted run meant to grant, so its role holding it means that run granted it.
 		$granted = array();
-		$checked = array();
 		foreach ( $this->grants as $role => $caps ) {
-			$object = $roles->get_role( $role );
-			if ( \is_null( $object ) ) {
+			$held = self::get_capabilities( $roles->roles, $role );
+			if ( \is_null( $held ) ) {
 				continue;
 			}
 
 			foreach ( $caps as $cap ) {
-				if ( \in_array( $cap, $ledger[ $role ] ?? array(), true ) ) {
-					continue;
-				}
-
-				if ( ! \array_key_exists( $cap, $object->capabilities ) ) {
+				if ( ! \in_array( $cap, $ledger[ $role ] ?? array(), true ) && ! \array_key_exists( $cap, $held ) ) {
 					$granted[ $role ][] = $cap;
-					$checked[ $role ][] = $cap;
-				} elseif ( true === $object->capabilities[ $cap ] && \in_array( $cap, $row['pending'][ $role ] ?? array(), true ) ) {
-					$checked[ $role ][] = $cap;
 				}
 			}
 		}
@@ -152,27 +154,30 @@ final class CapabilityGrants implements ComponentInterface {
 			}
 		}
 
-		$failed = array();
-		$stored = $this->get_stored_roles( $roles->role_key );
-		foreach ( $checked as $role => $caps ) {
+		$failed  = array();
+		$pending = array();
+		$stored  = $this->get_stored_roles( $roles->role_key );
+		foreach ( $granted as $role => $caps ) {
 			foreach ( $caps as $cap ) {
-				if ( true === ( $stored[ $role ][ $cap ] ?? null ) ) {
+				if ( true === ( self::get_capabilities( $stored, $role )[ $cap ] ?? null ) ) {
 					$ledger[ $role ][] = $cap;
 				} else {
-					$failed[] = "grant $cap to $role";
+					$pending[ $role ][] = $cap;
+					$failed[]           = "grant $cap to $role";
 				}
 			}
 		}
 		foreach ( $revoked as $role => $caps ) {
+			$kept = self::get_capabilities( $stored, $role );
 			foreach ( $caps as $cap ) {
-				if ( ! isset( $stored[ $role ] ) || \array_key_exists( $cap, $stored[ $role ] ) ) {
+				if ( \is_null( $kept ) || \array_key_exists( $cap, $kept ) ) {
 					$ledger[ $role ][] = $cap;
 					$failed[]          = "revoke $cap from $role";
 				}
 			}
 		}
 
-		$this->write_row( array() === $failed ? $fingerprint : '', $ledger, array() );
+		$this->write_row( array() === $failed ? $fingerprint : '', $ledger, $pending );
 		if ( array() === $failed ) {
 			return;
 		}
@@ -281,7 +286,7 @@ final class CapabilityGrants implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the capabilities of each role in the stored roles row, read past the options cache, or an empty array when the row cannot be read.
+	 * Returns the value of the stored roles row, read past the options cache, or null when the row cannot be read.
 	 *
 	 * A grant changes the request's copy of the roles even when the row keeps its value, so only the row shows what persisted.
 	 *
@@ -290,23 +295,31 @@ final class CapabilityGrants implements ComponentInterface {
 	 *
 	 * @param   string $role_key The name of the site's roles option.
 	 *
-	 * @return  array<array-key, array<array-key, mixed>>
+	 * @return  mixed
 	 */
-	protected function get_stored_roles( string $role_key ): array {
+	protected function get_stored_roles( string $role_key ): mixed {
 		try {
-			$row = ( new OptionRows() )->get( $role_key )?->value;
+			return ( new OptionRows() )->get( $role_key )?->value;
 		} catch ( RuntimeException ) {
-			$row = null;
+			return null;
 		}
+	}
 
-		$roles = array();
-		foreach ( \is_array( $row ) ? $row : array() as $role => $data ) {
-			if ( \is_array( $data ) && \is_array( $data['capabilities'] ?? null ) ) {
-				$roles[ $role ] = $data['capabilities'];
-			}
-		}
+	/**
+	 * Returns the capabilities that a roles array gives the role, or null when it holds no such role.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   mixed  $roles The roles, keyed by name, as WP_Roles holds and stores them.
+	 * @param   string $role  The role name.
+	 *
+	 * @return  array<array-key, mixed>|null
+	 */
+	protected static function get_capabilities( mixed $roles, string $role ): ?array {
+		$data = \is_array( $roles ) ? $roles[ $role ] ?? null : null;
 
-		return $roles;
+		return \is_array( $data ) && \is_array( $data['capabilities'] ?? null ) ? $data['capabilities'] : null;
 	}
 
 	/**
