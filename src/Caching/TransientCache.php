@@ -11,7 +11,7 @@ use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
 /**
  * Caches values as transients of the current site under a prefix, and clears them all at once by starting a new generation.
  *
- * Each entry is named by its key's hash, because the options table matches names regardless of letter case and accents and keeps only 172 characters of a transient name, and it holds the generation it was stored under, so a clear() leaves one row per key rather than one per generation.
+ * Each entry is named by its key's hash, because the options table matches names regardless of letter case and accents and drops the timeout of a transient name past 172 characters, and holds the generation it was stored under, so that clear() leaves one row per key rather than one per generation.
  *
  * @since   2.0.0
  * @version 2.0.0
