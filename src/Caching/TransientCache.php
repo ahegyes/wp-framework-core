@@ -121,8 +121,9 @@ final class TransientCache implements PsrCacheInterface {
 			return false;
 		}
 
+		// Serialized here, because an object cache keeps references to the objects in an array it stores.
 		$entry = array(
-			'value'      => $value,
+			'value'      => \maybe_serialize( $value ),
 			'generation' => $generation,
 		);
 
@@ -289,7 +290,9 @@ final class TransientCache implements PsrCacheInterface {
 			return null;
 		}
 
-		return array( $entry['value'] );
+		$value = $entry['value'];
+
+		return array( \is_string( $value ) ? \maybe_unserialize( $value ) : $value );
 	}
 
 	/**
