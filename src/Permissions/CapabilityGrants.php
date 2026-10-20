@@ -86,7 +86,7 @@ final class CapabilityGrants implements ComponentInterface {
 	// region METHODS
 
 	/**
-	 * Revokes each ledgered pair no longer declared and grants each declared pair that its role lacks and the ledger does not list, unless nothing either depends on changed since the last run.
+	 * Revokes each ledgered pair no longer declared and grants each declared pair that its role lacks and the ledger does not list, once the declaration or the declared roles have changed since the last complete run.
 	 *
 	 * A change the stored roles row does not keep is logged and made again on the next request.
 	 *
@@ -210,7 +210,7 @@ final class CapabilityGrants implements ComponentInterface {
 		}
 
 		$deleted = \array_diff_key( \array_intersect_key( $old_value, $this->grants ), \is_array( $value ) ? $value : array() );
-		if ( array() === $deleted || false === \get_option( $this->ledger_option ) ) {
+		if ( array() === $deleted ) {
 			return;
 		}
 
