@@ -4,6 +4,8 @@ namespace DeepWebSolutions\Framework\Permissions;
 
 use DeepWebSolutions\Framework\ComponentInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
+use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
+use DeepWebSolutions\Framework\Storage\OptionRows;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;
@@ -43,7 +45,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 *
 	 * @param   string             $ledger_option The option that stores, on each site, the fingerprint of the last run and the grants made, autoloaded.
 	 * @param   Pairs              $grants        The capabilities to grant, as lists keyed by role name.
-	 * @param   PsrLoggerInterface $logger        The logger that records the grants that did not persist.
+	 * @param   PsrLoggerInterface $logger        The logger that records the capability changes that did not persist.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the option name or the grants are invalid.
 	 */
@@ -86,19 +88,22 @@ final class CapabilityGrants implements ComponentInterface {
 	/**
 	 * Revokes each ledgered pair no longer declared and grants each declared pair that its role lacks and the ledger does not list, unless nothing either depends on changed since the last run.
 	 *
+	 * A change the stored roles row does not keep is logged and made again on the next request.
+	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 */
 	public function run(): void {
 		$roles       = \wp_roles();
 		$fingerprint = $this->get_fingerprint( $roles );
-		$row         = \get_option( $this->ledger_option );
-		if ( \is_array( $row ) && ( $row['fingerprint'] ?? null ) === $fingerprint ) {
+		$row         = $this->get_row();
+		if ( $row['fingerprint'] === $fingerprint ) {
 			return;
 		}
 
-		$ledger = array();
-		foreach ( self::get_pairs( \is_array( $row ) ? $row['grants'] ?? null : null ) as $role => $caps ) {
+		$ledger  = array();
+		$revoked = array();
+		foreach ( $row['grants'] as $role => $caps ) {
 			$object = $roles->get_role( $role );
 			if ( \is_null( $object ) ) {
 				continue;
@@ -109,10 +114,14 @@ final class CapabilityGrants implements ComponentInterface {
 					$ledger[ $role ][] = $cap;
 				} elseif ( (bool) ( $object->capabilities[ $cap ] ?? false ) ) {
 					$object->remove_cap( $cap );
+					$revoked[ $role ][] = $cap;
 				}
 			}
 		}
 
+		// A pending pair is one an interrupted run meant to grant, so its role holding it means that run granted it.
+		$granted = array();
+		$checked = array();
 		foreach ( $this->grants as $role => $caps ) {
 			$object = $roles->get_role( $role );
 			if ( \is_null( $object ) ) {
@@ -120,22 +129,62 @@ final class CapabilityGrants implements ComponentInterface {
 			}
 
 			foreach ( $caps as $cap ) {
-				if ( ! \in_array( $cap, $ledger[ $role ] ?? array(), true ) && ! \array_key_exists( $cap, $object->capabilities ) ) {
-					$object->add_cap( $cap );
-					$ledger[ $role ][] = $cap;
+				if ( \in_array( $cap, $ledger[ $role ] ?? array(), true ) ) {
+					continue;
+				}
+
+				if ( ! \array_key_exists( $cap, $object->capabilities ) ) {
+					$granted[ $role ][] = $cap;
+					$checked[ $role ][] = $cap;
+				} elseif ( true === $object->capabilities[ $cap ] && \in_array( $cap, $row['pending'][ $role ] ?? array(), true ) ) {
+					$checked[ $role ][] = $cap;
 				}
 			}
 		}
 
-		\update_option(
-			$this->ledger_option,
-			array(
-				'v'           => 1,
-				'fingerprint' => $fingerprint,
-				'grants'      => $ledger,
-			),
-			true
-		);
+		// The pending write precedes the grants, so a request killed after granting leaves the next run a record that tells its grants from hand grants.
+		if ( array() !== $granted ) {
+			$this->write_row( '', $ledger, $granted );
+			foreach ( $granted as $role => $caps ) {
+				foreach ( $caps as $cap ) {
+					$roles->get_role( $role )?->add_cap( $cap );
+				}
+			}
+		}
+
+		$failed = array();
+		$stored = $this->get_stored_roles( $roles->role_key );
+		foreach ( $checked as $role => $caps ) {
+			foreach ( $caps as $cap ) {
+				if ( true === ( $stored[ $role ][ $cap ] ?? null ) ) {
+					$ledger[ $role ][] = $cap;
+				} else {
+					$failed[] = "grant $cap to $role";
+				}
+			}
+		}
+		foreach ( $revoked as $role => $caps ) {
+			foreach ( $caps as $cap ) {
+				if ( ! isset( $stored[ $role ] ) || \array_key_exists( $cap, $stored[ $role ] ) ) {
+					$ledger[ $role ][] = $cap;
+					$failed[]          = "revoke $cap from $role";
+				}
+			}
+		}
+
+		$this->write_row( array() === $failed ? $fingerprint : '', $ledger, array() );
+		if ( array() === $failed ) {
+			return;
+		}
+
+		$message = 'The roles row did not keep the capability changes {changes}, so the next request makes them again.';
+		$context = array( 'changes' => \implode( ', ', $failed ) );
+		try {
+			$this->logger->warning( $message, $context );
+		} catch ( \Throwable $logging_failure ) {
+			// A broken logger must neither hide the failure nor break the request on every page load.
+			\error_log( "[$this->ledger_option.warning] $message " . \wp_json_encode( $context ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
+		}
 	}
 
 	// endregion
@@ -161,20 +210,12 @@ final class CapabilityGrants implements ComponentInterface {
 		}
 
 		$deleted = \array_diff_key( \array_intersect_key( $old_value, $this->grants ), \is_array( $value ) ? $value : array() );
-		$row     = \get_option( $this->ledger_option );
-		if ( array() === $deleted || ! \is_array( $row ) ) {
+		if ( array() === $deleted || false === \get_option( $this->ledger_option ) ) {
 			return;
 		}
 
-		\update_option(
-			$this->ledger_option,
-			array(
-				'v'           => 1,
-				'fingerprint' => '',
-				'grants'      => \array_diff_key( self::get_pairs( $row['grants'] ?? null ), $deleted ),
-			),
-			true
-		);
+		$row = $this->get_row();
+		$this->write_row( '', \array_diff_key( $row['grants'], $deleted ), \array_diff_key( $row['pending'], $deleted ) );
 	}
 
 	// endregion
@@ -193,6 +234,79 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	protected function get_fingerprint( \WP_Roles $roles ): string {
 		return \md5( (string) \wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
+	}
+
+	/**
+	 * Returns the stored row, which reads as empty when it is missing or is not a valid version 1 row.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  array{fingerprint: string, grants: Pairs, pending: Pairs}
+	 */
+	protected function get_row(): array {
+		$row = \get_option( $this->ledger_option );
+		if ( ! \is_array( $row ) || 1 !== ( $row['v'] ?? null ) ) {
+			$row = array();
+		}
+
+		return array(
+			'fingerprint' => \is_string( $row['fingerprint'] ?? null ) ? $row['fingerprint'] : '',
+			'grants'      => self::get_pairs( $row['grants'] ?? null ),
+			'pending'     => self::get_pairs( $row['pending'] ?? null ),
+		);
+	}
+
+	/**
+	 * Writes the row, autoloaded, so that the next run's comparison reads no row from the database.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $fingerprint The fingerprint, or an empty string when the next run has work to do.
+	 * @param   Pairs  $grants      The ledger of grants made.
+	 * @param   Pairs  $pending     The grants about to be made.
+	 */
+	protected function write_row( string $fingerprint, array $grants, array $pending ): void {
+		\update_option(
+			$this->ledger_option,
+			array(
+				'v'           => 1,
+				'fingerprint' => $fingerprint,
+				'grants'      => $grants,
+				'pending'     => $pending,
+			),
+			true
+		);
+	}
+
+	/**
+	 * Returns the capabilities of each role in the stored roles row, read past the options cache, or an empty array when the row cannot be read.
+	 *
+	 * A grant changes the request's copy of the roles even when the row keeps its value, so only the row shows what persisted.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string $role_key The name of the site's roles option.
+	 *
+	 * @return  array<array-key, array<array-key, mixed>>
+	 */
+	protected function get_stored_roles( string $role_key ): array {
+		try {
+			$row = ( new OptionRows() )->get( $role_key )?->value;
+		} catch ( RuntimeException ) {
+			$row = null;
+		}
+
+		$roles = array();
+		foreach ( \is_array( $row ) ? $row : array() as $role => $data ) {
+			if ( \is_array( $data ) && \is_array( $data['capabilities'] ?? null ) ) {
+				$roles[ $role ] = $data['capabilities'];
+			}
+		}
+
+		return $roles;
 	}
 
 	/**
