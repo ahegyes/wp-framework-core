@@ -3,7 +3,6 @@
 namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Core\Caching\Exceptions\InvalidCacheKeyException;
-use DeepWebSolutions\Framework\Shared\Caching\CacheGenerationInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
 
@@ -41,6 +40,16 @@ final class TransientCache implements PsrCacheInterface {
 	protected const int MAX_PREFIX_LENGTH = 140;
 
 	/**
+	 * The length of the option_name column, past which the database truncates a name onto another option's without an error.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     int
+	 */
+	protected const int MAX_OPTION_LENGTH = 191;
+
+	/**
 	 * The characters PSR-16 reserves, which no key may hold.
 	 *
 	 * @since   2.0.0
@@ -51,14 +60,14 @@ final class TransientCache implements PsrCacheInterface {
 	protected const string RESERVED_CHARACTERS = '{}()/\\@:';
 
 	/**
-	 * The generation whose entries the cache reads.
+	 * The option of the current site that keeps the generation whose entries the cache reads.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     CacheGenerationInterface
+	 * @var     string
 	 */
-	protected CacheGenerationInterface $generation;
+	protected string $generation_option;
 
 	// endregion
 
@@ -70,20 +79,23 @@ final class TransientCache implements PsrCacheInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string                        $prefix     The prefix of every transient name, under the plugin's own prefix.
-	 * @param   CacheGenerationInterface|null $generation Optional. The generation. Default is one kept in the option named by the prefix followed by cache_generation.
+	 * @param   string      $prefix            The prefix of every transient name, under the plugin's own prefix.
+	 * @param   string|null $generation_option Optional. The option that keeps the generation, which caches that clear together share. Default is the prefix followed by cache_generation.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the prefix is empty, surrounded by whitespace or longer than 140 characters.
+	 * @throws  InvalidArgumentException Thrown when the prefix is empty, surrounded by whitespace or longer than 140 characters, or the option name is empty, surrounded by whitespace or longer than 191 characters.
 	 */
 	public function __construct(
 		protected string $prefix,
-		?CacheGenerationInterface $generation = null
+		?string $generation_option = null
 	) {
 		if ( '' === $prefix || \trim( $prefix ) !== $prefix || \mb_strlen( $prefix ) > self::MAX_PREFIX_LENGTH ) {
 			throw new InvalidArgumentException( "Cache prefix '$prefix' is empty, surrounded by whitespace or longer than 140 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->generation = $generation ?? new OptionCacheGeneration( "{$prefix}cache_generation" );
+		$this->generation_option = $generation_option ?? "{$prefix}cache_generation";
+		if ( '' === $this->generation_option || \trim( $this->generation_option ) !== $this->generation_option || \mb_strlen( $this->generation_option ) > self::MAX_OPTION_LENGTH ) {
+			throw new InvalidArgumentException( "Option name '$this->generation_option' is empty, surrounded by whitespace or longer than 191 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
 	}
 
 	// endregion
@@ -117,7 +129,7 @@ final class TransientCache implements PsrCacheInterface {
 			return $this->delete( $key );
 		}
 
-		$generation = $this->generation->get() ?? $this->generation->advance();
+		$generation = $this->get_generation() ?? $this->start_generation();
 		if ( \is_null( $generation ) ) {
 			return false;
 		}
@@ -163,7 +175,7 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function clear(): bool {
-		return ! \is_null( $this->generation->advance() );
+		return ! \is_null( $this->start_generation() );
 	}
 
 	/**
@@ -280,7 +292,7 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	protected function read( string $key ): ?array {
 		$name       = $this->get_name( $key );
-		$generation = $this->generation->get();
+		$generation = $this->get_generation();
 		if ( \is_null( $generation ) ) {
 			return null;
 		}
@@ -294,6 +306,37 @@ final class TransientCache implements PsrCacheInterface {
 		$value = $entry['value'];
 
 		return array( \is_string( $value ) ? \maybe_unserialize( $value ) : $value );
+	}
+
+	/**
+	 * Returns the current generation, or null when none has started.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  string|null
+	 */
+	protected function get_generation(): ?string {
+		$generation = \get_option( $this->generation_option );
+
+		return \is_string( $generation ) && '' !== $generation ? $generation : null;
+	}
+
+	/**
+	 * Starts a generation as a new random token and returns it, or null when it cannot be stored.
+	 *
+	 * A random token, unlike a counter, never repeats once the option is deleted, so an uninstall followed by a reinstall cannot revive older entries.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  string|null
+	 */
+	protected function start_generation(): ?string {
+		$generation = \bin2hex( \random_bytes( 8 ) );
+
+		// Autoloaded, because every read of the cache needs the generation.
+		return \update_option( $this->generation_option, $generation, true ) ? $generation : null;
 	}
 
 	/**
