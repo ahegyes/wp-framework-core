@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Notices;
+namespace DeepWebSolutions\Framework\Core\AdminNotice;
 
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 

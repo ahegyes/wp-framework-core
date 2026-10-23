@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Notices;
+namespace DeepWebSolutions\Framework\Core\AdminNotice;
 
-use DeepWebSolutions\Framework\ComponentInterface;
-use DeepWebSolutions\Framework\Notices\Stores\OptionNoticeStore;
-use DeepWebSolutions\Framework\Notices\Stores\RequestNoticeStore;
-use DeepWebSolutions\Framework\Notices\Stores\UserMetaRecipientStates;
-use DeepWebSolutions\Framework\Notices\Stores\UserNoticeStore;
+use DeepWebSolutions\Framework\Core\AdminNotice\Stores\OptionNoticeStore;
+use DeepWebSolutions\Framework\Core\AdminNotice\Stores\RequestNoticeStore;
+use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserMetaRecipientStates;
+use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserNoticeStore;
+use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;

@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework;
+namespace DeepWebSolutions\Framework\Core;
 
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use Psr\Container\ContainerInterface as PsrContainerInterface;

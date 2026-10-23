@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Scheduling\Backends;
+namespace DeepWebSolutions\Framework\Core\Scheduling\Backends;
 
 \defined( 'ABSPATH' ) || exit;
 

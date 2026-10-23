@@ -16,7 +16,7 @@
   },
   "autoload": {
     "psr-4": {
-      "DeepWebSolutions\\Framework\\": "src/"
+      "DeepWebSolutions\\Framework\\Core\\": "src/"
     }
   },
   "extra": {

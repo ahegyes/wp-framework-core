@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework;
+namespace DeepWebSolutions\Framework\Core\Migration;
 
 \defined( 'ABSPATH' ) || exit;
 

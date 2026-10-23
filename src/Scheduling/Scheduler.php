@@ -1,12 +1,12 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Scheduling;
+namespace DeepWebSolutions\Framework\Core\Scheduling;
 
-use DeepWebSolutions\Framework\ComponentInterface;
-use DeepWebSolutions\Framework\Scheduling\Backends\ActionSchedulerBackend;
-use DeepWebSolutions\Framework\Scheduling\Backends\BackendInterface;
-use DeepWebSolutions\Framework\Scheduling\Backends\BackendState;
-use DeepWebSolutions\Framework\Scheduling\Backends\WpCronBackend;
+use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Scheduling\Backends\ActionSchedulerBackend;
+use DeepWebSolutions\Framework\Core\Scheduling\Backends\BackendInterface;
+use DeepWebSolutions\Framework\Core\Scheduling\Backends\BackendState;
+use DeepWebSolutions\Framework\Core\Scheduling\Backends\WpCronBackend;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 
 \defined( 'ABSPATH' ) || exit;

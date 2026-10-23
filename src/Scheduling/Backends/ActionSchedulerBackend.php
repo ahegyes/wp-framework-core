@@ -1,9 +1,9 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Scheduling\Backends;
+namespace DeepWebSolutions\Framework\Core\Scheduling\Backends;
 
-use DeepWebSolutions\Framework\Scheduling\Recurrence;
-use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
+use DeepWebSolutions\Framework\Core\Scheduling\Recurrence;
+use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 
 \defined( 'ABSPATH' ) || exit;
 

@@ -1,11 +1,11 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Permissions;
+namespace DeepWebSolutions\Framework\Core\Permission;
 
-use DeepWebSolutions\Framework\ComponentInterface;
+use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
-use DeepWebSolutions\Framework\Storage\OptionRows;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;

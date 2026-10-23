@@ -1,15 +1,16 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework;
+namespace DeepWebSolutions\Framework\Core\Migration;
 
-use DeepWebSolutions\Framework\Scheduling\ScheduledHook;
-use DeepWebSolutions\Framework\Scheduling\SchedulerInterface;
+use DeepWebSolutions\Framework\Core\Clock\SystemClock;
+use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
+use DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
+use DeepWebSolutions\Framework\Core\Storage\OptionRow;
+use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
-use DeepWebSolutions\Framework\Storage\OptionRow;
-use DeepWebSolutions\Framework\Storage\OptionRows;
-use DeepWebSolutions\Framework\Utilities\SystemClock;
 use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 

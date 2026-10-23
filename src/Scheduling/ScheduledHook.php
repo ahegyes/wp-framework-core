@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Scheduling;
+namespace DeepWebSolutions\Framework\Core\Scheduling;
 
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 

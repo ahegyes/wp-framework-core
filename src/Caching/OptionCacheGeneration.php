@@ -1,6 +1,6 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Caching;
+namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Shared\Caching\CacheGenerationInterface;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;

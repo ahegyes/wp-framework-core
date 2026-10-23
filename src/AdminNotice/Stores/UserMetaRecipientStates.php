@@ -1,16 +1,16 @@
 <?php declare( strict_types=1 );
 
-namespace DeepWebSolutions\Framework\Notices\Stores;
+namespace DeepWebSolutions\Framework\Core\AdminNotice\Stores;
 
-use DeepWebSolutions\Framework\Notices\NoticeIdentity;
-use DeepWebSolutions\Framework\Notices\NoticeScope;
-use DeepWebSolutions\Framework\Notices\RecipientState;
-use DeepWebSolutions\Framework\Notices\RecipientStateStoreInterface;
+use DeepWebSolutions\Framework\Core\AdminNotice\NoticeIdentity;
+use DeepWebSolutions\Framework\Core\AdminNotice\NoticeScope;
+use DeepWebSolutions\Framework\Core\AdminNotice\RecipientState;
+use DeepWebSolutions\Framework\Core\AdminNotice\RecipientStateStoreInterface;
+use DeepWebSolutions\Framework\Core\Storage\MetaRow;
+use DeepWebSolutions\Framework\Core\Storage\MetaRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
-use DeepWebSolutions\Framework\Storage\MetaRow;
-use DeepWebSolutions\Framework\Storage\MetaRows;
 
 \defined( 'ABSPATH' ) || exit;
 
