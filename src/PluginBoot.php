@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core;
 
+use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;
@@ -43,7 +44,9 @@ final class PluginBoot {
 		protected string $plugin_file,
 		protected string $hook_prefix,
 		protected PsrLoggerInterface $logger
-	) {}
+	) {
+		$this->logger = new GuardedLogger( $logger, $hook_prefix );
+	}
 
 	// endregion
 
@@ -153,7 +156,7 @@ final class PluginBoot {
 	// region HELPERS
 
 	/**
-	 * Logs each distinct failure message at most once an hour, through the PHP error log when the logger throws.
+	 * Logs each distinct failure message at most once an hour.
 	 *
 	 * A deterministic failure repeats on every request, so logging each one would flood the log.
 	 *
@@ -169,18 +172,13 @@ final class PluginBoot {
 		}
 
 		\set_transient( $key, 1, HOUR_IN_SECONDS );
-		try {
-			$this->logger->error(
-				'Boot failed; the plugin did not finish starting: {message}',
-				array(
-					'message'   => $exception->getMessage(),
-					'exception' => $exception,
-				)
-			);
-		} catch ( \Throwable $logging_failure ) {
-			// A broken logger must neither hide the failure nor stop the notice and the failure action.
-			\error_log( "[$this->hook_prefix.error] Boot failed; the plugin did not finish starting: {$exception->getMessage()}\n$exception\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
-		}
+		$this->logger->error(
+			'Boot failed; the plugin did not finish starting: {message}',
+			array(
+				'message'   => $exception->getMessage(),
+				'exception' => $exception,
+			)
+		);
 	}
 
 	// endregion

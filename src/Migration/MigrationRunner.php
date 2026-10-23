@@ -4,6 +4,7 @@ namespace DeepWebSolutions\Framework\Core\Migration;
 
 use DeepWebSolutions\Framework\Core\Clock\SystemClock;
 use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Core\PluginBoot;
 use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 use DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
@@ -127,8 +128,9 @@ final class MigrationRunner implements ComponentInterface {
 			throw new InvalidArgumentException( "Batch time limit '$batch_time_limit' is outside 1 to 300 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->rows  = new OptionRows( $wpdb );
-		$this->clock = $clock ?? new SystemClock();
+		$this->rows   = new OptionRows( $wpdb );
+		$this->clock  = $clock ?? new SystemClock();
+		$this->logger = new GuardedLogger( $logger, $option );
 	}
 
 	// endregion
@@ -191,8 +193,7 @@ final class MigrationRunner implements ComponentInterface {
 			$revision   = $stored_row ?? 0;
 			if ( $revision > $target ) {
 				$this->checkpoint( $target ); // A re-upgrade then re-runs the newer, convergent steps over the rollback-era data.
-				$this->log(
-					'warning',
+				$this->logger->warning(
 					'The stored data revision {stored} is above the code\'s revision {target}, so it was written back.',
 					array(
 						'stored' => $revision,
@@ -202,7 +203,7 @@ final class MigrationRunner implements ComponentInterface {
 				$revision = $target;
 			} elseif ( $this->took_over && \is_null( $this->get_error() ) ) {
 				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within 10 minutes.', $revision );
-				$this->log( 'warning', 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
+				$this->logger->warning( 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
 			}
 
 			if ( \is_null( $stored_row ) ) {
@@ -358,7 +359,7 @@ final class MigrationRunner implements ComponentInterface {
 			}
 		} catch ( RuntimeException $exception ) {
 			$this->lock = null;
-			$this->log( 'warning', 'Could not take the data migration lock: {error}', array( 'error' => $exception->getMessage() ) );
+			$this->logger->warning( 'Could not take the data migration lock: {error}', array( 'error' => $exception->getMessage() ) );
 		}
 
 		return ! \is_null( $this->lock );
@@ -385,7 +386,7 @@ final class MigrationRunner implements ComponentInterface {
 			return true;
 		}
 
-		$this->log( 'warning', 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
+		$this->logger->warning( 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
 
 		return false;
 	}
@@ -402,7 +403,7 @@ final class MigrationRunner implements ComponentInterface {
 				$this->rows->delete( $this->lock );
 			}
 		} catch ( RuntimeException $exception ) {
-			$this->log( 'warning', 'Could not release the data migration lock, which expires in 10 minutes: {error}', array( 'error' => $exception->getMessage() ) );
+			$this->logger->warning( 'Could not release the data migration lock, which expires in 10 minutes: {error}', array( 'error' => $exception->getMessage() ) );
 		}
 
 		$this->lock = null;
@@ -421,7 +422,7 @@ final class MigrationRunner implements ComponentInterface {
 		$hook      = new ScheduledHook( $this->get_hook() );
 		$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
 		if ( true !== $scheduled ) {
-			$this->log( 'warning', 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
+			$this->logger->warning( 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
 		}
 	}
 
@@ -493,8 +494,7 @@ final class MigrationRunner implements ComponentInterface {
 			$this->record_error( $exception->getMessage(), $revision );
 		}
 
-		$this->log(
-			'error',
+		$this->logger->error(
 			'Data migration failed: {message}',
 			array(
 				'message'   => $exception->getMessage(),
@@ -505,28 +505,6 @@ final class MigrationRunner implements ComponentInterface {
 		if ( PluginBoot::is_development_environment() ) {
 			$this->unlock(); // Releasing the lock lets the fixed step run again on the next request.
 			throw $exception;
-		}
-	}
-
-	/**
-	 * Logs a record, or writes it raw to the PHP error log when the logger throws.
-	 *
-	 * A broken logger must neither hide a failure nor break the request that reports it.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string               $level   The PSR-3 level.
-	 * @param   string               $message The message with placeholders.
-	 * @param   array<string, mixed> $context The values to interpolate, and an optional throwable under exception.
-	 */
-	protected function log( string $level, string $message, array $context ): void {
-		try {
-			$this->logger->log( $level, $message, $context );
-		} catch ( \Throwable $logging_failure ) {
-			$exception = $context['exception'] ?? null;
-			unset( $context['exception'] );
-			\error_log( "[$this->option.$level] $message " . \wp_json_encode( $context ) . ( $exception instanceof \Throwable ? "\n$exception" : '' ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
 		}
 	}
 

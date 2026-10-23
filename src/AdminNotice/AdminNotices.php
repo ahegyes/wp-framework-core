@@ -7,6 +7,7 @@ use DeepWebSolutions\Framework\Core\AdminNotice\Stores\RequestNoticeStore;
 use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserMetaRecipientStates;
 use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserNoticeStore;
 use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
@@ -122,8 +123,9 @@ final class AdminNotices implements ComponentInterface {
 			};
 		}
 
+		$this->logger   = new GuardedLogger( $logger, $prefix );
 		$this->states   = $states ?? new UserMetaRecipientStates( $prefix );
-		$this->selector = new NoticeSelector( $prefix, $logger, $this->stores, $this->states );
+		$this->selector = new NoticeSelector( $prefix, $this->logger, $this->stores, $this->states );
 	}
 
 	// endregion

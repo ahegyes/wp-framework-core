@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\Permission;
 
 use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Core\Storage\Database;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
@@ -42,6 +43,7 @@ final class CapabilityGrants implements ComponentInterface {
 		protected PsrLoggerInterface $logger
 	) {
 		OptionRows::check_name( $ledger_option );
+		$this->logger = new GuardedLogger( $logger, $ledger_option );
 
 		foreach ( $grants as $role => $caps ) {
 			if ( ! \is_string( $role ) || '' === $role || ! \is_array( $caps ) || ! \array_is_list( $caps ) || ! \array_all( $caps, static fn ( mixed $cap ): bool => \is_string( $cap ) && '' !== $cap ) ) {
@@ -167,14 +169,7 @@ final class CapabilityGrants implements ComponentInterface {
 			return;
 		}
 
-		$message = 'The roles row did not keep the capability changes {changes}, so the next request makes them again.';
-		$context = array( 'changes' => \implode( ', ', $failed ) );
-		try {
-			$this->logger->warning( $message, $context );
-		} catch ( \Throwable $logging_failure ) {
-			// A broken logger must neither hide the failure nor break the request on every page load.
-			\error_log( "[$this->ledger_option.warning] $message " . \wp_json_encode( $context ) . "\nThe logger failed: $logging_failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The injected logger failed.
-		}
+		$this->logger->warning( 'The roles row did not keep the capability changes {changes}, so the next request makes them again.', array( 'changes' => \implode( ', ', $failed ) ) );
 	}
 
 	// endregion

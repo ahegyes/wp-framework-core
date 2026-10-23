@@ -2,9 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Logging;
 
-use Psr\Log\AbstractLogger as PsrAbstractLogger;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
-use Psr\Log\LogLevel as PsrLogLevel;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -14,31 +12,7 @@ use Psr\Log\LogLevel as PsrLogLevel;
  * @since   2.0.0
  * @version 2.0.0
  */
-final class ErrorLogLogger extends PsrAbstractLogger {
-	// region FIELDS AND CONSTANTS
-
-	/**
-	 * The levels written only under WP_DEBUG.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     list<string>
-	 */
-	protected const array DEBUG_LEVELS = array( PsrLogLevel::NOTICE, PsrLogLevel::INFO, PsrLogLevel::DEBUG );
-
-	/**
-	 * The levels written in every environment.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     list<string>
-	 */
-	protected const array SEVERE_LEVELS = array( PsrLogLevel::EMERGENCY, PsrLogLevel::ALERT, PsrLogLevel::CRITICAL, PsrLogLevel::ERROR, PsrLogLevel::WARNING );
-
-	// endregion
-
+final class ErrorLogLogger extends AbstractLogger {
 	// region MAGIC METHODS
 
 	/**
@@ -73,57 +47,13 @@ final class ErrorLogLogger extends PsrAbstractLogger {
 	 */
 	#[\Override]
 	public function log( mixed $level, string|\Stringable $message, array $context = array() ): void {
-		if ( \in_array( $level, self::DEBUG_LEVELS, true ) ) {
-			if ( ! ( \defined( 'WP_DEBUG' ) && WP_DEBUG ) ) {
-				return;
-			}
-		} elseif ( ! \in_array( $level, self::SEVERE_LEVELS, true ) ) {
-			throw new PsrInvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		$severity = self::get_severity( $level );
+		if ( $severity < self::get_default_threshold() ) {
+			return;
 		}
 
-		$record    = "[$this->channel.$level] " . $this->interpolate( (string) $message, $context );
-		$exception = $context['exception'] ?? null;
-		if ( $exception instanceof \Throwable ) {
-			$record .= "\n$exception";
-		}
-
-		\error_log( $record ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
+		\error_log( self::format_record( $this->channel, $level, self::interpolate( (string) $message, $context ), $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
 		\do_action( "qm/$level", $message, $context );
-	}
-
-	// endregion
-
-	// region HELPERS
-
-	/**
-	 * Replaces each {key} placeholder in the message with its scalar, null or Stringable context value.
-	 *
-	 * Only the values the message uses are cast, and a placeholder whose value throws while casting stays as it is, because PSR-3 forbids a context value from making logging fail.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string       $message The message with placeholders.
-	 * @param   array<mixed> $context The values to interpolate.
-	 *
-	 * @return  string
-	 */
-	protected function interpolate( string $message, array $context ): string {
-		$replacements = array();
-		foreach ( $context as $key => $value ) {
-			$placeholder = '{' . $key . '}';
-			if ( ! \str_contains( $message, $placeholder ) || ! ( \is_null( $value ) || \is_scalar( $value ) || $value instanceof \Stringable ) ) {
-				continue;
-			}
-
-			try {
-				$replacements[ $placeholder ] = (string) $value;
-			} catch ( \Throwable ) {
-				continue;
-			}
-		}
-
-		return \strtr( $message, $replacements );
 	}
 
 	// endregion
