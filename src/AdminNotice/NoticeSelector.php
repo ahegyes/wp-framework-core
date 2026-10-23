@@ -132,8 +132,8 @@ final class NoticeSelector {
 	 */
 	protected static function shows_here( NoticeScope $scope ): bool {
 		return match ( true ) {
-			\is_network_admin() => NoticeScope::Request === $scope || NoticeScope::Network === $scope,
-			\is_user_admin()    => NoticeScope::Request === $scope,
+			\is_network_admin() => NoticeScope::Site !== $scope,
+			\is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
 			default             => \is_blog_admin(),
 		};
 	}
