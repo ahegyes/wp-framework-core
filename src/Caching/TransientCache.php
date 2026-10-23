@@ -42,16 +42,6 @@ final class TransientCache implements PsrCacheInterface {
 	protected const int MAX_PREFIX_LENGTH = 140;
 
 	/**
-	 * The characters PSR-16 reserves, which no key may hold.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     string
-	 */
-	protected const string RESERVED_CHARACTERS = '{}()/\\@:';
-
-	/**
 	 * The option of the current site that keeps the generation whose entries the cache reads.
 	 *
 	 * @since   2.0.0
@@ -111,7 +101,7 @@ final class TransientCache implements PsrCacheInterface {
 	#[\Override]
 	public function set( string $key, mixed $value, null|int|\DateInterval $ttl = null ): bool {
 		$name     = $this->get_name( $key );
-		$lifetime = $this->get_lifetime( $ttl );
+		$lifetime = CacheEntries::get_lifetime( $ttl ) ?? self::DEFAULT_TTL;
 		if ( $lifetime <= 0 ) {
 			return $this->delete( $key );
 		}
@@ -121,11 +111,7 @@ final class TransientCache implements PsrCacheInterface {
 			return false;
 		}
 
-		// Serialized here, because an object cache keeps references to the objects in an array it stores.
-		$entry = array(
-			'value'      => \maybe_serialize( $value ),
-			'generation' => $generation,
-		);
+		$entry = CacheEntries::wrap( $value, $generation );
 
 		// set_transient() also returns false when the store already holds the entry.
 		return \set_transient( $name, $entry, $lifetime ) || \maybe_serialize( \get_transient( $name ) ) === \maybe_serialize( $entry );
@@ -177,7 +163,7 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function getMultiple( iterable $keys, mixed $default = null ): iterable { // phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound -- PSR-16 names the parameter, and callers may pass it by name.
-		$keys = $this->get_keys( $keys );
+		$keys = CacheEntries::get_keys( $keys );
 
 		// On the options table, get_transient() reads each entry's rows in a query of its own.
 		if ( ! \wp_using_ext_object_cache() && ! \wp_installing() ) {
@@ -214,7 +200,7 @@ final class TransientCache implements PsrCacheInterface {
 	public function setMultiple( iterable $values, null|int|\DateInterval $ttl = null ): bool {
 		$entries = array();
 		foreach ( $values as $key => $value ) {
-			$entries[] = array( $this->check_key( $key ), $value );
+			$entries[] = array( CacheEntries::check_key( $key ), $value );
 		}
 
 		$stored = true;
@@ -240,7 +226,7 @@ final class TransientCache implements PsrCacheInterface {
 	#[\Override]
 	public function deleteMultiple( iterable $keys ): bool {
 		$deleted = true;
-		foreach ( $this->get_keys( $keys ) as $key ) {
+		foreach ( CacheEntries::get_keys( $keys ) as $key ) {
 			$deleted = $this->delete( $key ) && $deleted;
 		}
 
@@ -281,15 +267,7 @@ final class TransientCache implements PsrCacheInterface {
 			return null;
 		}
 
-		// Other code storing under the name, or a filter, can return something that is not an entry.
-		$entry = \get_transient( $name );
-		if ( ! \is_array( $entry ) || 2 !== \count( $entry ) || ! \array_key_exists( 'value', $entry ) || ( $entry['generation'] ?? null ) !== $generation ) {
-			return null;
-		}
-
-		$value = $entry['value'];
-
-		return array( \is_string( $value ) ? \maybe_unserialize( $value ) : $value );
+		return CacheEntries::unwrap( \get_transient( $name ), $generation );
 	}
 
 	/**
@@ -324,26 +302,6 @@ final class TransientCache implements PsrCacheInterface {
 	}
 
 	/**
-	 * Returns the lifetime in seconds that the TTL gives an entry stored now.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   null|int|\DateInterval $ttl The TTL, where null is a day.
-	 *
-	 * @return  int
-	 */
-	protected function get_lifetime( null|int|\DateInterval $ttl ): int {
-		if ( ! $ttl instanceof \DateInterval ) {
-			return $ttl ?? self::DEFAULT_TTL;
-		}
-
-		$now = new \DateTimeImmutable( '@' . \time() );
-
-		return $now->add( $ttl )->getTimestamp() - $now->getTimestamp();
-	}
-
-	/**
 	 * Returns the transient name of the key's entry.
 	 *
 	 * @since   2.0.0
@@ -356,54 +314,7 @@ final class TransientCache implements PsrCacheInterface {
 	 * @return  string
 	 */
 	protected function get_name( string $key ): string {
-		return $this->prefix . \md5( $this->check_key( $key ) );
-	}
-
-	/**
-	 * Returns the keys as strings, after checking every one.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   iterable<mixed> $keys The keys, as strings or integers.
-	 *
-	 * @throws  InvalidCacheKeyException Thrown when a key is invalid.
-	 *
-	 * @return  list<string>
-	 */
-	protected function get_keys( iterable $keys ): array {
-		$checked = array();
-		foreach ( $keys as $key ) {
-			$checked[] = $this->check_key( $key );
-		}
-
-		return $checked;
-	}
-
-	/**
-	 * Returns the key as a string, or throws when PSR-16 does not allow it.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   mixed $key The key.
-	 *
-	 * @throws  InvalidCacheKeyException Thrown when the key is empty, neither a string nor an integer, or holds a reserved character.
-	 *
-	 * @return  string
-	 */
-	protected function check_key( mixed $key ): string {
-		// PHP turns a numeric array key into an integer, so a key of setMultiple() can arrive as one.
-		if ( \is_int( $key ) ) {
-			$key = (string) $key;
-		}
-
-		if ( ! \is_string( $key ) || '' === $key || false !== \strpbrk( $key, self::RESERVED_CHARACTERS ) ) {
-			$shown = \is_string( $key ) ? $key : \get_debug_type( $key );
-			throw new InvalidCacheKeyException( "Cache key '$shown' is empty, not a string or holds one of {}()/\\@:." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		return $key;
+		return $this->prefix . \md5( CacheEntries::check_key( $key ) );
 	}
 
 	// endregion
