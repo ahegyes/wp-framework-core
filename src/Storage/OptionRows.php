@@ -261,17 +261,19 @@ final class OptionRows {
 	 */
 	public function remove( string $name, int $site_id = 0 ): void {
 		self::check_name( $name );
-		$this->on_site(
-			$this->get_site_id( $site_id ),
-			static function () use ( $name ): void {
-				$wpdb = Database::get_wpdb();
+		$switched = self::switch_to_site( $this->get_site_id( $site_id ) );
+		try {
+			$wpdb = Database::get_wpdb();
 
-				// An absent option and a failed delete both make delete_option() return false, so only the error tells them apart.
-				$wpdb->flush();
-				\delete_option( $name );
-				Database::check_query( $wpdb, "Could not remove option '$name'" );
+			// An absent option and a failed delete both make delete_option() return false, so only the error tells them apart.
+			$wpdb->flush();
+			\delete_option( $name );
+			Database::check_query( $wpdb, "Could not remove option '$name'" );
+		} finally {
+			if ( $switched ) {
+				\restore_current_blog();
 			}
-		);
+		}
 	}
 
 	/**
@@ -411,43 +413,43 @@ final class OptionRows {
 	 * @param   string $name    The option name.
 	 */
 	protected function forget( int $site_id, string $name ): void {
-		$this->on_site(
-			$site_id,
-			static function () use ( $name ): void {
-				\wp_cache_delete( $name, 'options' );
-				foreach ( array( 'notoptions', 'alloptions' ) as $list ) {
-					// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped.
-					$names = \wp_cache_get( $list, 'options' );
-					if ( \is_array( $names ) && \array_key_exists( $name, $names ) ) {
-						\wp_cache_delete( $list, 'options' );
-					}
+		$switched = self::switch_to_site( $site_id );
+		try {
+			\wp_cache_delete( $name, 'options' );
+			foreach ( array( 'notoptions', 'alloptions' ) as $list ) {
+				// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped.
+				$names = \wp_cache_get( $list, 'options' );
+				if ( \is_array( $names ) && \array_key_exists( $name, $names ) ) {
+					\wp_cache_delete( $list, 'options' );
 				}
 			}
-		);
+		} finally {
+			if ( $switched ) {
+				\restore_current_blog();
+			}
+		}
 	}
 
 	/**
-	 * Runs an operation on the site, switching to it when it is not the current one.
+	 * Switches to the site when it is not the current one, and returns whether it switched, so that the caller restores only its own switch.
+	 *
+	 * A switch to the current site would still mark the request as switched while the operation runs.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   int      $site_id   The blog id.
-	 * @param   \Closure $operation The operation.
+	 * @param   int $site_id The blog id.
+	 *
+	 * @return  bool
 	 */
-	protected function on_site( int $site_id, \Closure $operation ): void {
-		$switch = \get_current_blog_id() !== $site_id;
-		if ( $switch ) {
-			\switch_to_blog( $site_id );
+	protected static function switch_to_site( int $site_id ): bool {
+		if ( \get_current_blog_id() === $site_id ) {
+			return false;
 		}
 
-		try {
-			$operation();
-		} finally {
-			if ( $switch ) {
-				\restore_current_blog();
-			}
-		}
+		\switch_to_blog( $site_id );
+
+		return true;
 	}
 
 	// endregion

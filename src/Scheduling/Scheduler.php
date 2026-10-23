@@ -88,17 +88,23 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	#[\Override]
 	public function enqueue( ScheduledHook $hook, int $priority = 10 ): true|\WP_Error {
 		self::check_priority( $priority );
+		$ready = $this->check_ready( __METHOD__ );
+		if ( true !== $ready ) {
+			return $ready;
+		}
 
-		return $this->write(
-			__METHOD__,
-			function () use ( $hook, $priority ): true|\WP_Error {
-				$census = $this->census( $hook );
-
-				return 0 < $census['pending'] + $census['running']
-					? true
-					: $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->enqueue( $hook, $priority, true ) );
+		try {
+			$census = $this->census( $hook );
+			if ( 0 < $census['pending'] + $census['running'] ) {
+				return true;
 			}
-		);
+
+			$backend = $this->get_writable_backend();
+
+			return $backend instanceof \WP_Error ? $backend : $backend->enqueue( $hook, $priority, true );
+		} catch ( \Throwable $exception ) {
+			return self::get_failure( $exception );
+		}
 	}
 
 	/**
@@ -116,12 +122,22 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			throw new InvalidArgumentException( "Timestamp '$timestamp' is not a positive Unix time." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		return $this->write(
-			__METHOD__,
-			fn (): true|\WP_Error => 0 < $this->census( $hook )['pending']
-				? true
-				: $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->schedule_single( $hook, $timestamp, $priority ) )
-		);
+		$ready = $this->check_ready( __METHOD__ );
+		if ( true !== $ready ) {
+			return $ready;
+		}
+
+		try {
+			if ( 0 < $this->census( $hook )['pending'] ) {
+				return true;
+			}
+
+			$backend = $this->get_writable_backend();
+
+			return $backend instanceof \WP_Error ? $backend : $backend->schedule_single( $hook, $timestamp, $priority );
+		} catch ( \Throwable $exception ) {
+			return self::get_failure( $exception );
+		}
 	}
 
 	/**
@@ -133,22 +149,28 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	#[\Override]
 	public function ensure_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority = 10 ): true|\WP_Error {
 		self::check_priority( $priority );
+		$ready = $this->check_ready( __METHOD__ );
+		if ( true !== $ready ) {
+			return $ready;
+		}
 
-		return $this->write(
-			__METHOD__,
-			function () use ( $hook, $recurrence, $priority ): true|\WP_Error {
-				$census = $this->census( $hook );
-				if ( 0 < $census['running_recurring'] || array( $recurrence->interval ) === $census['pending_intervals'] ) {
-					return true;
-				}
-
-				$cleared = array() === $census['pending_intervals'] ? true : $this->clear( $hook );
-
-				return true === $cleared
-					? $this->insert( static fn ( BackendInterface $backend ): true|\WP_Error => $backend->schedule_recurring( $hook, $recurrence, $priority ) )
-					: $cleared;
+		try {
+			$census = $this->census( $hook );
+			if ( 0 < $census['running_recurring'] || array( $recurrence->interval ) === $census['pending_intervals'] ) {
+				return true;
 			}
-		);
+
+			$cleared = array() === $census['pending_intervals'] ? true : $this->clear( $hook );
+			if ( true !== $cleared ) {
+				return $cleared;
+			}
+
+			$backend = $this->get_writable_backend();
+
+			return $backend instanceof \WP_Error ? $backend : $backend->schedule_recurring( $hook, $recurrence, $priority );
+		} catch ( \Throwable $exception ) {
+			return self::get_failure( $exception );
+		}
 	}
 
 	/**
@@ -176,7 +198,16 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
-		return $this->write( __METHOD__, fn (): true|\WP_Error => $this->clear( $hook ) );
+		$ready = $this->check_ready( __METHOD__ );
+		if ( true !== $ready ) {
+			return $ready;
+		}
+
+		try {
+			return $this->clear( $hook );
+		} catch ( \Throwable $exception ) {
+			return self::get_failure( $exception );
+		}
 	}
 
 	/**
@@ -188,21 +219,24 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
 		// Given no hook name, Action Scheduler would cancel the pending actions of every hook.
-		$hook = ( new ScheduledHook( $hook ) )->hook;
+		$hook  = ( new ScheduledHook( $hook ) )->hook;
+		$ready = $this->check_ready( __METHOD__ );
+		if ( true !== $ready ) {
+			return $ready;
+		}
 
-		return $this->write(
-			__METHOD__,
-			function () use ( $hook ): true|\WP_Error {
-				foreach ( $this->get_readable_backends() as $backend ) {
-					$cleared = $backend->unschedule_hook( $hook );
-					if ( true !== $cleared ) {
-						return $cleared;
-					}
+		try {
+			foreach ( $this->get_readable_backends() as $backend ) {
+				$cleared = $backend->unschedule_hook( $hook );
+				if ( true !== $cleared ) {
+					return $cleared;
 				}
-
-				return true;
 			}
-		);
+
+			return true;
+		} catch ( \Throwable $exception ) {
+			return self::get_failure( $exception );
+		}
 	}
 
 	// endregion
@@ -239,47 +273,37 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	}
 
 	/**
-	 * Runs a write once scheduling is ready, returning a throw as an error.
+	 * Returns the first backend that takes writes, or an error when none does.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string                       $method    The public method that writes, for the developer notice.
-	 * @param   \Closure(): (true|\WP_Error) $operation The write.
-	 *
-	 * @return  true|\WP_Error
+	 * @return  BackendInterface|\WP_Error
 	 */
-	protected function write( string $method, \Closure $operation ): true|\WP_Error {
-		$ready = $this->check_ready( $method );
-		if ( true !== $ready ) {
-			return $ready;
-		}
-
-		try {
-			return $operation();
-		} catch ( \Throwable $exception ) {
-			return new \WP_Error( 'scheduler_failed', $exception->getMessage(), $exception );
-		}
-	}
-
-	/**
-	 * Runs an insert on the first backend that takes writes, or returns an error when none does.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   \Closure(BackendInterface): (true|\WP_Error) $insert The insert.
-	 *
-	 * @return  true|\WP_Error
-	 */
-	protected function insert( \Closure $insert ): true|\WP_Error {
+	protected function get_writable_backend(): BackendInterface|\WP_Error {
 		foreach ( $this->backends as $backend ) {
 			if ( BackendState::Supported === $backend->get_state() ) {
-				return $insert( $backend );
+				return $backend;
 			}
 		}
 
 		return new \WP_Error( 'scheduler_unavailable', 'No scheduler takes writes.' );
+	}
+
+	/**
+	 * Returns the error that a write returns in place of a throw.
+	 *
+	 * A throw comes from code the scheduler does not own, such as another plugin's filter callback, and writes report every failure as an error.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   \Throwable $exception The throw.
+	 *
+	 * @return  \WP_Error
+	 */
+	protected static function get_failure( \Throwable $exception ): \WP_Error {
+		return new \WP_Error( 'scheduler_failed', $exception->getMessage(), $exception );
 	}
 
 	/**
