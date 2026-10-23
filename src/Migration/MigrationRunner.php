@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Migration;
 
+use DeepWebSolutions\Framework\Bootstrap\Requirements;
 use DeepWebSolutions\Framework\Core\Clock\SystemClock;
 use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
@@ -271,27 +272,26 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	public function render_notice(): void {
 		$revision = self::get_revision( $this->option );
-		if ( $revision >= \count( $this->steps ) || ! \current_user_can( 'activate_plugins' ) ) {
+		if ( $revision >= \count( $this->steps ) ) {
 			return;
 		}
 
 		$name  = \get_plugin_data( $this->plugin_file, false )['Name'];
 		$error = $this->get_error();
 		if ( ! \is_null( $error ) ) {
-			\wp_admin_notice(
+			Requirements::print_admin_notice(
 				\sprintf(
 					/* translators: 1: The plugin's name. 2: The error message. */
 					\esc_html__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s', 'wp-framework' ),
 					\esc_html( $name ),
 					\esc_html( $error['message'] )
-				),
-				array( 'type' => 'error' )
+				)
 			);
 			return;
 		}
 
 		if ( $this->steps[ $revision ] instanceof BatchedMigrationStepInterface ) {
-			\wp_admin_notice(
+			Requirements::print_admin_notice(
 				\sprintf(
 					/* translators: 1: The plugin's name. 2: The URL that runs the update now. */
 					\__( '%1$s is updating its data in the background. <a href="%2$s">Run the update now</a>.', 'wp-framework' ),

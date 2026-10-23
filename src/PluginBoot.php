@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core;
 
+use DeepWebSolutions\Framework\Bootstrap\Requirements;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
@@ -137,17 +138,12 @@ final class PluginBoot {
 	 * @version 2.0.0
 	 */
 	public function render_failure_notice(): void {
-		if ( ! \current_user_can( 'activate_plugins' ) ) {
-			return;
-		}
-
-		\wp_admin_notice(
+		Requirements::print_admin_notice(
 			\sprintf(
 				/* translators: %s: The plugin's name. */
 				\esc_html__( '%s could not finish starting, so its features may be unavailable. The error has been logged.', 'wp-framework' ),
 				\esc_html( \get_plugin_data( $this->plugin_file, false )['Name'] )
-			),
-			array( 'type' => 'error' )
+			)
 		);
 	}
 
