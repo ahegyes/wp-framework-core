@@ -142,7 +142,7 @@ final class AdminNotices implements ComponentInterface {
 	public function register_hooks(): void {
 		\add_action( 'all_admin_notices', array( $this, 'render_notices' ) );
 		\add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
-		\add_action( 'admin_footer', array( $this, 'print_dismiss_script' ) );
+		\add_action( 'admin_footer', array( $this, 'enqueue_dismiss_script' ) );
 	}
 
 	// endregion
@@ -270,25 +270,28 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Prints the script that posts dismissals, when this request showed a notice that carries a dismissal nonce.
+	 * Enqueues the script that posts dismissals through wp-api-fetch, when this request showed a notice that carries a dismissal nonce.
+	 *
+	 * The script rides a handle without a source, which prints its inline script after wp-api-fetch whether that printed in the head or prints in the footer.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 */
-	public function print_dismiss_script(): void {
+	public function enqueue_dismiss_script(): void {
 		if ( ! $this->needs_dismiss_script ) {
 			return;
 		}
 
 		$settings = \wp_json_encode(
 			array(
-				'prefix'    => $this->prefix,
-				'url'       => \rest_url( "{$this->get_rest_namespace()}/notices/dismissals" ),
-				'restNonce' => \wp_create_nonce( 'wp_rest' ),
+				'prefix' => $this->prefix,
+				'path'   => "{$this->get_rest_namespace()}/notices/dismissals",
 			)
 		);
 
-		\wp_print_inline_script_tag(
+		\wp_register_script( "{$this->prefix}-notice-dismissal", false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		\wp_add_inline_script(
+			"{$this->prefix}-notice-dismissal",
 			<<<JS
 			( function ( settings ) {
 				document.addEventListener( 'click', function ( event ) {
@@ -298,19 +301,14 @@ final class AdminNotices implements ComponentInterface {
 						return;
 					}
 
-					fetch( settings.url, {
+					wp.apiFetch( {
+						path: settings.path,
 						method: 'POST',
-						credentials: 'include',
-						headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': settings.restNonce },
-						body: JSON.stringify( {
+						data: {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
 							nonce: notice.getAttribute( 'data-notice-nonce' ),
 							generation: notice.getAttribute( 'data-notice-generation' ) || undefined
-						} )
-					} ).then( function ( response ) {
-						if ( ! response.ok ) {
-							console.error( 'The notice dismissal failed with HTTP status ' + response.status + '.' );
 						}
 					} ).catch( function ( error ) {
 						console.error( 'The notice dismissal failed.', error );
@@ -319,6 +317,7 @@ final class AdminNotices implements ComponentInterface {
 			} )( $settings );
 			JS
 		);
+		\wp_enqueue_script( "{$this->prefix}-notice-dismissal" );
 	}
 
 	/**
