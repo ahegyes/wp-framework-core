@@ -61,11 +61,11 @@ final class PluginBoot {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   \Closure(): bool $compose The composition, which builds the plugin, boots its kernel and returns false after reporting an unmet requirement.
+	 * @param   callable(): bool $compose The composition, which builds the plugin, boots its kernel and returns false after reporting an unmet requirement.
 	 *
 	 * @throws  \Throwable Thrown when the composition fails in a local or development environment, after the failure action fired.
 	 */
-	public function run( \Closure $compose ): void {
+	public function run( callable $compose ): void {
 		try {
 			$composed = $compose();
 		} catch ( \Throwable $exception ) {
