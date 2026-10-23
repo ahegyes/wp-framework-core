@@ -351,7 +351,7 @@ final class AdminNotices implements ComponentInterface {
 		try {
 			$record = null;
 			if ( NoticeScope::Request !== $scope ) {
-				$record = $this->stores[ $scope->value ]->find( $id, $identity->context );
+				$record = \array_find( $this->stores[ $scope->value ]->all( $identity->context ), static fn ( StoredNotice $stored ): bool => $stored->notice->id === $id );
 				if ( null === $record || $generation !== $record->generation ) {
 					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id and generation.', array( 'status' => 404 ) );
 				}

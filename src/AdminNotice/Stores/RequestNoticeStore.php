@@ -47,24 +47,9 @@ final class RequestNoticeStore implements NoticeStoreInterface {
 	#[\Override]
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
 		$this->check_scope( $context );
-		if ( $notice->scope !== $context->scope ) {
-			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a request context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		$this->records[ $notice->id ] = new StoredNotice( $notice, $context, NoticeRecords::now(), \wp_generate_uuid4() );
+		$this->records[ $notice->id ] = NoticeRecords::create( $notice, $context );
 
 		return $this->records[ $notice->id ];
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	#[\Override]
-	public function find( string $id, NoticeContext $context ): ?StoredNotice {
-		return \array_find( $this->all( $context ), static fn ( StoredNotice $record ): bool => $record->notice->id === $id );
 	}
 
 	/**

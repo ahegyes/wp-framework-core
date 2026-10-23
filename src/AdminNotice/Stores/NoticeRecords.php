@@ -5,11 +5,14 @@ namespace DeepWebSolutions\Framework\Core\AdminNotice\Stores;
 use DeepWebSolutions\Framework\Core\AdminNotice\Notice;
 use DeepWebSolutions\Framework\Core\AdminNotice\NoticeContext;
 use DeepWebSolutions\Framework\Core\AdminNotice\StoredNotice;
+use DeepWebSolutions\Framework\Core\Storage\Database;
+use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
+use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Encodes, decodes, ages and orders the records of the default notice stores, so every store keeps one row format and one order.
+ * Creates, encodes, decodes, ages and orders the records of the default notice stores, so every store keeps one row format and one order.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -30,6 +33,27 @@ final class NoticeRecords {
 	// endregion
 
 	// region METHODS
+
+	/**
+	 * Returns a new record of the notice in the context, created now under a new generation.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   Notice        $notice  The notice.
+	 * @param   NoticeContext $context The context the notice belongs to.
+	 *
+	 * @throws  InvalidArgumentException Thrown when the notice is not of the context's scope.
+	 *
+	 * @return  StoredNotice
+	 */
+	public static function create( Notice $notice, NoticeContext $context ): StoredNotice {
+		if ( $notice->scope !== $context->scope ) {
+			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a {$context->scope->value} context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
+		return new StoredNotice( $notice, $context, self::now(), \wp_generate_uuid4() );
+	}
 
 	/**
 	 * Returns the record as a row.
@@ -67,6 +91,36 @@ final class NoticeRecords {
 		$notice = Notice::from_array( $row );
 
 		return null !== $notice && $notice->scope === $context->scope ? new StoredNotice( $notice, $context, $row['created_at'], $row['gen'] ) : null;
+	}
+
+	/**
+	 * Returns whether the row holds a record of the notice with the given id.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   mixed  $row The row as stored.
+	 * @param   string $id  The notice's id.
+	 *
+	 * @return  bool
+	 */
+	public static function has_id( mixed $row, string $id ): bool {
+		return \is_array( $row ) && ( $row['id'] ?? null ) === $id;
+	}
+
+	/**
+	 * Returns whether the row holds the record of the given generation.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   mixed  $row        The row as stored.
+	 * @param   string $generation The record's generation.
+	 *
+	 * @return  bool
+	 */
+	public static function has_generation( mixed $row, string $generation ): bool {
+		return \is_array( $row ) && ( $row['gen'] ?? null ) === $generation;
 	}
 
 	/**
@@ -109,6 +163,23 @@ final class NoticeRecords {
 	 */
 	public static function now(): int {
 		return (int) ( \microtime( true ) * 1_000_000 );
+	}
+
+	/**
+	 * Returns the user meta key that keeps the named rows for the site, under the site's table prefix, because every site of a network shares the user meta table.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   int    $site_id The blog id.
+	 * @param   string $name    The name of the rows, under the plugin's prefix.
+	 *
+	 * @throws  LogicException Thrown when WordPress has no database connection.
+	 *
+	 * @return  string
+	 */
+	public static function get_user_meta_key( int $site_id, string $name ): string {
+		return Database::get_wpdb()->get_blog_prefix( $site_id ) . $name;
 	}
 
 	// endregion

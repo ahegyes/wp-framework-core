@@ -70,26 +70,11 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
-		$name = $this->get_option_prefix( $context ) . $notice->id;
-		if ( $notice->scope !== $context->scope ) {
-			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a {$context->scope->value} context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		$record = new StoredNotice( $notice, $context, NoticeRecords::now(), \wp_generate_uuid4() );
+		$name   = $this->get_option_prefix( $context ) . $notice->id;
+		$record = NoticeRecords::create( $notice, $context );
 		$this->rows->upsert( $name, NoticeRecords::encode( $record ), $this->get_site_id( $context ) );
 
 		return $record;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	#[\Override]
-	public function find( string $id, NoticeContext $context ): ?StoredNotice {
-		return \array_find( $this->all( $context ), static fn ( StoredNotice $record ): bool => $record->notice->id === $id );
 	}
 
 	/**
@@ -130,7 +115,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	public function consume( StoredNotice $observed ): bool {
 		$row = $this->rows->get( $this->get_option_prefix( $observed->context ) . $observed->notice->id, $this->get_site_id( $observed->context ) );
 
-		return null !== $row && \is_array( $row->value ) && ( $row->value['gen'] ?? null ) === $observed->generation && $this->rows->delete( $row );
+		return null !== $row && NoticeRecords::has_generation( $row->value, $observed->generation ) && $this->rows->delete( $row );
 	}
 
 	/**

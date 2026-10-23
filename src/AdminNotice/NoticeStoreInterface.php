@@ -33,22 +33,6 @@ interface NoticeStoreInterface {
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice;
 
 	/**
-	 * Returns the record of the notice with the given id in the context, or null when there is none or the notice has expired.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string        $id      The notice's id.
-	 * @param   NoticeContext $context The context.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the store does not keep the context's scope.
-	 * @throws  RuntimeException         Thrown when the store cannot be read.
-	 *
-	 * @return  StoredNotice|null
-	 */
-	public function find( string $id, NoticeContext $context ): ?StoredNotice;
-
-	/**
 	 * Returns the records of the notices in the context, oldest first and by id among equals, leaving out expired notices.
 	 *
 	 * @since   2.0.0

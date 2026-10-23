@@ -3,6 +3,8 @@
 namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Core\Caching\Exceptions\InvalidCacheKeyException;
+use DeepWebSolutions\Framework\Core\Storage\Database;
+use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
 
@@ -38,16 +40,6 @@ final class TransientCache implements PsrCacheInterface {
 	 * @var     int
 	 */
 	protected const int MAX_PREFIX_LENGTH = 140;
-
-	/**
-	 * The length of the option_name column, past which the database truncates a name onto another option's without an error.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     int
-	 */
-	protected const int MAX_OPTION_LENGTH = 191;
 
 	/**
 	 * The characters PSR-16 reserves, which no key may hold.
@@ -88,14 +80,9 @@ final class TransientCache implements PsrCacheInterface {
 		protected string $prefix,
 		?string $generation_option = null
 	) {
-		if ( '' === $prefix || \trim( $prefix ) !== $prefix || \mb_strlen( $prefix ) > self::MAX_PREFIX_LENGTH ) {
-			throw new InvalidArgumentException( "Cache prefix '$prefix' is empty, surrounded by whitespace or longer than 140 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
+		OptionRows::check_name( $prefix, self::MAX_PREFIX_LENGTH );
 		$this->generation_option = $generation_option ?? "{$prefix}cache_generation";
-		if ( '' === $this->generation_option || \trim( $this->generation_option ) !== $this->generation_option || \mb_strlen( $this->generation_option ) > self::MAX_OPTION_LENGTH ) {
-			throw new InvalidArgumentException( "Option name '$this->generation_option' is empty, surrounded by whitespace or longer than 191 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
+		OptionRows::check_name( $this->generation_option );
 	}
 
 	// endregion
@@ -153,18 +140,15 @@ final class TransientCache implements PsrCacheInterface {
 	#[\Override]
 	public function delete( string $key ): bool {
 		$name = $this->get_name( $key );
-		if ( \delete_transient( $name ) ) {
-			return true;
-		}
-
+		$wpdb = Database::find_wpdb();
+		$wpdb?->flush();
+		$deleted = \delete_transient( $name );
 		if ( \wp_using_ext_object_cache() || \wp_installing() ) {
-			return false === \get_transient( $name );
+			return $deleted || false === \get_transient( $name );
 		}
 
-		// An absent entry and a failed delete both make delete_transient() return false, and delete_option() marks the option absent in either case, so only the query error tells them apart.
-		$wpdb = $GLOBALS['wpdb'] ?? null;
-
-		return ! ( $wpdb instanceof \wpdb && '' !== $wpdb->last_error );
+		// An absent entry and a failed delete both make delete_transient() return false, and delete_option() marks the option absent in either case, so only the query error tells them apart, and it also shows a timeout row left behind.
+		return '' === ( $wpdb->last_error ?? '' );
 	}
 
 	/**

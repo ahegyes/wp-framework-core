@@ -30,9 +30,7 @@ final readonly class NoticeIdentity {
 		public NoticeContext $context,
 		public string $id
 	) {
-		if ( 1 !== \preg_match( Notice::ID_PATTERN, $id ) ) {
-			throw new InvalidArgumentException( "Notice id '$id' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
+		Notice::check_id( $id );
 	}
 
 	// endregion

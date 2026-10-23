@@ -57,12 +57,7 @@ final class MetaRows {
 	public function __construct(
 		protected string $meta_type
 	) {
-		$wpdb = $GLOBALS['wpdb'] ?? null;
-		if ( ! $wpdb instanceof \wpdb ) {
-			throw new LogicException( 'The meta rows need a wpdb connection.' );
-		}
-
-		$this->wpdb = $wpdb;
+		$this->wpdb = Database::get_wpdb();
 		$this->get_table();
 	}
 
@@ -87,10 +82,9 @@ final class MetaRows {
 		$wpdb  = $this->wpdb;
 		$table = $this->get_table();
 
+		$wpdb->flush();
 		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT %i AS id, meta_key, meta_value FROM %i WHERE %i = %d AND meta_key = %s ORDER BY %i', $this->get_id_column(), $table, \sanitize_key( "{$this->meta_type}_id" ), $object_id, $key, $this->get_id_column() ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The meta API returns no meta ids.
-		if ( '' !== $wpdb->last_error ) {
-			throw new RuntimeException( "Could not list the '$key' meta rows of $this->meta_type $object_id: $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
+		Database::check_query( $wpdb, "Could not list the '$key' meta rows of $this->meta_type $object_id" );
 
 		$list = array();
 		foreach ( (array) $rows as $row ) {
@@ -127,7 +121,7 @@ final class MetaRows {
 		}
 
 		// The meta API unslashes objects in place, which corrupts them and the caller's copy.
-		if ( ! self::is_storable( $value ) ) {
+		if ( ! Database::is_storable( $value ) ) {
 			throw new InvalidArgumentException( "The '$key' meta value holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
@@ -163,12 +157,38 @@ final class MetaRows {
 		}
 
 		// A gone row and a failed delete both make delete_metadata_by_mid() return false, so only the error tells them apart.
+		$wpdb->flush();
 		$deleted = \delete_metadata_by_mid( $this->meta_type, $observed->id );
-		if ( '' !== $wpdb->last_error ) {
-			throw new RuntimeException( "Could not delete meta row $observed->id of '$table': $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
+		Database::check_query( $wpdb, "Could not delete meta row $observed->id of '$table'" );
 
 		return $deleted;
+	}
+
+	/**
+	 * Adds a row to the object under the key, then deletes each of the rows it replaces, and returns the new row.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @internal
+	 *
+	 * @param   int       $object_id The object's id.
+	 * @param   string    $key       The meta key.
+	 * @param   mixed     $value     The value: a scalar, null, or an array of them.
+	 * @param   MetaRow[] $replaced  The rows the new one replaces, as they were read.
+	 *
+	 * @throws  InvalidArgumentException Thrown when the key or the value is invalid, or a replaced row belongs to another table.
+	 * @throws  RuntimeException         Thrown when the row is not added or a replaced row cannot be deleted.
+	 *
+	 * @return  MetaRow
+	 */
+	public function supersede( int $object_id, string $key, mixed $value, array $replaced ): MetaRow {
+		$row = $this->add( $object_id, $key, $value );
+		foreach ( $replaced as $old ) {
+			$this->delete( $old );
+		}
+
+		return $row;
 	}
 
 	// endregion
@@ -204,20 +224,6 @@ final class MetaRows {
 	 */
 	protected function get_id_column(): string {
 		return 'user' === $this->meta_type ? 'umeta_id' : 'meta_id';
-	}
-
-	/**
-	 * Returns whether the value holds only scalars, null and arrays of them.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   mixed $value The value.
-	 *
-	 * @return  bool
-	 */
-	protected static function is_storable( mixed $value ): bool {
-		return \is_null( $value ) || \is_scalar( $value ) || ( \is_array( $value ) && \array_all( $value, self::is_storable( ... ) ) );
 	}
 
 	// endregion

@@ -28,16 +28,6 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The database connection.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     \wpdb
-	 */
-	protected \wpdb $wpdb;
-
-	/**
 	 * The user meta rows.
 	 *
 	 * @since   2.0.0
@@ -64,12 +54,6 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	public function __construct(
 		protected string $prefix
 	) {
-		$wpdb = $GLOBALS['wpdb'] ?? null;
-		if ( ! $wpdb instanceof \wpdb ) {
-			throw new LogicException( 'The notice stores need a wpdb connection.' );
-		}
-
-		$this->wpdb = $wpdb;
 		$this->rows = new MetaRows( 'user' );
 	}
 
@@ -114,7 +98,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 			return false;
 		}
 
-		$this->rows->add(
+		$this->rows->supersede(
 			$user_id,
 			$this->get_meta_key( $identity ),
 			array(
@@ -122,12 +106,9 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 				'notice' => $identity->to_key(),
 				'state'  => $state->value,
 				'at'     => \time(),
-			)
+			),
+			$replaced
 		);
-
-		foreach ( $replaced as $old ) {
-			$this->rows->delete( $old );
-		}
 
 		return true;
 	}
@@ -147,8 +128,6 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 * @return  string
 	 */
 	protected function get_meta_key( NoticeIdentity $identity ): string {
-		$wpdb = $this->wpdb;
-
 		$context = $identity->context;
 		$site_id = match ( $context->scope ) {
 			NoticeScope::Request => \get_current_blog_id(),
@@ -157,7 +136,7 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 			NoticeScope::Network => null,
 		};
 
-		return null === $site_id ? "{$this->prefix}_network_notice_states" : $wpdb->get_blog_prefix( $site_id ) . "{$this->prefix}_notice_states";
+		return null === $site_id ? "{$this->prefix}_network_notice_states" : NoticeRecords::get_user_meta_key( $site_id, "{$this->prefix}_notice_states" );
 	}
 
 	/**

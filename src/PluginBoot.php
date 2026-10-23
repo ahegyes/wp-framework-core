@@ -78,7 +78,7 @@ final class PluginBoot {
 			 * @param   \Throwable $exception The failure that stopped the composition.
 			 */
 			\do_action( "{$this->hook_prefix}_initialization_failure", $exception );
-			if ( \in_array( \wp_get_environment_type(), array( 'local', 'development' ), true ) ) {
+			if ( self::is_development_environment() ) {
 				throw $exception;
 			}
 
@@ -107,6 +107,20 @@ final class PluginBoot {
 		 * @version 2.0.0
 		 */
 		\do_action( "{$this->hook_prefix}_initialized" );
+	}
+
+	/**
+	 * Returns whether the site runs in a local or development environment, where the framework rethrows the failures it records.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @internal
+	 *
+	 * @return  bool
+	 */
+	public static function is_development_environment(): bool {
+		return \in_array( \wp_get_environment_type(), array( 'local', 'development' ), true );
 	}
 
 	// endregion

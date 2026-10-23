@@ -56,12 +56,7 @@ final class OptionRows {
 	public function __construct(
 		?\wpdb $wpdb = null
 	) {
-		$wpdb ??= $GLOBALS['wpdb'] ?? null;
-		if ( ! $wpdb instanceof \wpdb ) {
-			throw new LogicException( 'The option rows need a wpdb connection.' );
-		}
-
-		$this->wpdb = $wpdb;
+		$this->wpdb = $wpdb ?? Database::get_wpdb();
 	}
 
 	// endregion
@@ -85,11 +80,12 @@ final class OptionRows {
 	public function get( string $name, int $site_id = 0 ): ?OptionRow {
 		$wpdb    = $this->wpdb;
 		$site_id = $this->get_site_id( $site_id );
-		$this->check_name( $name );
+		self::check_name( $name );
 
 		// A row rather than a single value, because wpdb::get_var() returns null for an empty string as it does for a missing row.
+		$wpdb->flush();
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $this->get_table( $site_id ), $name ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A cached value may predate another request's write.
-		$this->check_query( "Could not read option '$name'" );
+		Database::check_query( $wpdb, "Could not read option '$name'" );
 
 		$raw = \is_array( $row ) ? ( $row['option_value'] ?? null ) : null;
 
@@ -113,10 +109,11 @@ final class OptionRows {
 	public function list( string $prefix, int $site_id = 0 ): array {
 		$wpdb    = $this->wpdb;
 		$site_id = $this->get_site_id( $site_id );
-		$this->check_name( $prefix );
+		self::check_name( $prefix );
 
+		$wpdb->flush();
 		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT option_name, option_value FROM %i WHERE option_name LIKE %s ORDER BY option_name', $this->get_table( $site_id ), $wpdb->esc_like( $prefix ) . '%' ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The options API cannot list options by prefix.
-		$this->check_query( "Could not list the options under '$prefix'" );
+		Database::check_query( $wpdb, "Could not list the options under '$prefix'" );
 
 		$list = array();
 		foreach ( (array) $rows as $row ) {
@@ -263,19 +260,37 @@ final class OptionRows {
 	 * @throws  RuntimeException         Thrown when the delete fails.
 	 */
 	public function remove( string $name, int $site_id = 0 ): void {
-		$this->check_name( $name );
+		self::check_name( $name );
 		$this->on_site(
 			$this->get_site_id( $site_id ),
 			static function () use ( $name ): void {
-				$wpdb = $GLOBALS['wpdb'] ?? null;
+				$wpdb = Database::get_wpdb();
 
 				// An absent option and a failed delete both make delete_option() return false, so only the error tells them apart.
+				$wpdb->flush();
 				\delete_option( $name );
-				if ( $wpdb instanceof \wpdb && '' !== $wpdb->last_error ) {
-					throw new RuntimeException( "Could not remove option '$name': $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-				}
+				Database::check_query( $wpdb, "Could not remove option '$name'" );
 			}
 		);
+	}
+
+	/**
+	 * Throws when the options API or the option_name column would not keep the name exactly as given.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @internal
+	 *
+	 * @param   string $name       The option name or prefix.
+	 * @param   int    $max_length Optional. The most characters the name may hold. Default is the 191 of the option_name column.
+	 *
+	 * @throws  InvalidArgumentException Thrown when the name is empty, surrounded by whitespace or longer than the maximum.
+	 */
+	public static function check_name( string $name, int $max_length = self::MAX_NAME_LENGTH ): void {
+		if ( '' === $name || \trim( $name ) !== $name || \mb_strlen( $name ) > $max_length ) {
+			throw new InvalidArgumentException( "Option name '$name' is empty, surrounded by whitespace or longer than $max_length characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
 	}
 
 	// endregion
@@ -323,22 +338,6 @@ final class OptionRows {
 	}
 
 	/**
-	 * Throws when the options API or the option_name column would not keep the name exactly as given.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string $name The option name or prefix.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the name is empty, surrounded by whitespace or longer than 191 characters.
-	 */
-	protected function check_name( string $name ): void {
-		if ( '' === $name || \trim( $name ) !== $name || \mb_strlen( $name ) > self::MAX_NAME_LENGTH ) {
-			throw new InvalidArgumentException( "Option name '$name' is empty, surrounded by whitespace or longer than 191 characters." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-	}
-
-	/**
 	 * Returns the value as the options table stores it.
 	 *
 	 * @since   2.0.0
@@ -352,10 +351,10 @@ final class OptionRows {
 	 * @return  string
 	 */
 	protected function serialize( string $name, mixed $value ): string {
-		$this->check_name( $name );
+		self::check_name( $name );
 
 		// A stored object's class name changes with each plugin's scoping prefix, so it would not read back.
-		if ( ! self::is_storable( $value ) ) {
+		if ( ! Database::is_storable( $value ) ) {
 			throw new InvalidArgumentException( "The value of option '$name' holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
@@ -400,22 +399,6 @@ final class OptionRows {
 		}
 
 		return \is_int( $changed ) ? $changed : 0;
-	}
-
-	/**
-	 * Throws when the last query failed.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string $failure The message that opens the exception.
-	 *
-	 * @throws  RuntimeException Thrown when the last query failed.
-	 */
-	protected function check_query( string $failure ): void {
-		if ( '' !== $this->wpdb->last_error ) {
-			throw new RuntimeException( "$failure: {$this->wpdb->last_error}" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
 	}
 
 	/**
@@ -465,20 +448,6 @@ final class OptionRows {
 				\restore_current_blog();
 			}
 		}
-	}
-
-	/**
-	 * Returns whether the value holds only scalars, null and arrays of them.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   mixed $value The value.
-	 *
-	 * @return  bool
-	 */
-	protected static function is_storable( mixed $value ): bool {
-		return \is_null( $value ) || \is_scalar( $value ) || ( \is_array( $value ) && \array_all( $value, self::is_storable( ... ) ) );
 	}
 
 	// endregion

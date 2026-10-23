@@ -29,16 +29,6 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The database connection.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     \wpdb
-	 */
-	protected \wpdb $wpdb;
-
-	/**
 	 * The user meta rows.
 	 *
 	 * @since   2.0.0
@@ -65,12 +55,6 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	public function __construct(
 		protected string $prefix
 	) {
-		$wpdb = $GLOBALS['wpdb'] ?? null;
-		if ( ! $wpdb instanceof \wpdb ) {
-			throw new LogicException( 'The notice stores need a wpdb connection.' );
-		}
-
-		$this->wpdb = $wpdb;
 		$this->rows = new MetaRows( 'user' );
 	}
 
@@ -89,31 +73,12 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
-		$key = $this->get_meta_key( $context );
-		if ( $notice->scope !== $context->scope ) {
-			throw new InvalidArgumentException( "A {$notice->scope->value} notice does not belong in a user context." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		$replaced = \array_filter( $this->rows->list( $context->owner, $key ), static fn ( MetaRow $row ): bool => \is_array( $row->value ) && ( $row->value['id'] ?? null ) === $notice->id );
-		$record   = new StoredNotice( $notice, $context, NoticeRecords::now(), \wp_generate_uuid4() );
-		$this->rows->add( $context->owner, $key, NoticeRecords::encode( $record ) );
-
-		foreach ( $replaced as $row ) {
-			$this->rows->delete( $row );
-		}
+		$key      = $this->get_meta_key( $context );
+		$record   = NoticeRecords::create( $notice, $context );
+		$replaced = \array_filter( $this->rows->list( $context->owner, $key ), static fn ( MetaRow $row ): bool => NoticeRecords::has_id( $row->value, $notice->id ) );
+		$this->rows->supersede( $context->owner, $key, NoticeRecords::encode( $record ), $replaced );
 
 		return $record;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	#[\Override]
-	public function find( string $id, NoticeContext $context ): ?StoredNotice {
-		return \array_find( $this->all( $context ), static fn ( StoredNotice $record ): bool => $record->notice->id === $id );
 	}
 
 	/**
@@ -171,7 +136,7 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function consume( StoredNotice $observed ): bool {
-		$row = \array_find( $this->rows->list( $observed->context->owner, $this->get_meta_key( $observed->context ) ), static fn ( MetaRow $row ): bool => \is_array( $row->value ) && ( $row->value['gen'] ?? null ) === $observed->generation );
+		$row = \array_find( $this->rows->list( $observed->context->owner, $this->get_meta_key( $observed->context ) ), static fn ( MetaRow $row ): bool => NoticeRecords::has_generation( $row->value, $observed->generation ) );
 
 		return null !== $row && $this->rows->delete( $row );
 	}
@@ -185,7 +150,7 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	#[\Override]
 	public function remove( string $id, NoticeContext $context ): void {
 		foreach ( $this->rows->list( $context->owner, $this->get_meta_key( $context ) ) as $row ) {
-			if ( \is_array( $row->value ) && ( $row->value['id'] ?? null ) === $id ) {
+			if ( NoticeRecords::has_id( $row->value, $id ) ) {
 				$this->rows->delete( $row );
 			}
 		}
@@ -208,13 +173,11 @@ final class UserNoticeStore implements NoticeStoreInterface {
 	 * @return  string
 	 */
 	protected function get_meta_key( NoticeContext $context ): string {
-		$wpdb = $this->wpdb;
-
 		if ( NoticeScope::User !== $context->scope ) {
 			throw new InvalidArgumentException( "The user store keeps no {$context->scope->value} notices." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		return $wpdb->get_blog_prefix( $context->site_id ) . "{$this->prefix}_notices";
+		return NoticeRecords::get_user_meta_key( $context->site_id, "{$this->prefix}_notices" );
 	}
 
 	// endregion

@@ -4,6 +4,7 @@ namespace DeepWebSolutions\Framework\Core\Migration;
 
 use DeepWebSolutions\Framework\Core\Clock\SystemClock;
 use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\PluginBoot;
 use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 use DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
 use DeepWebSolutions\Framework\Core\Storage\OptionRow;
@@ -469,7 +470,7 @@ final class MigrationRunner implements ComponentInterface {
 			throw new RuntimeException( "Could not record schema revision '$revision'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		if ( $revision > ( \filter_var( \get_option( "{$this->option}_high_water", 0 ), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) ) {
+		if ( $revision > self::get_revision( "{$this->option}_high_water" ) ) {
 			\update_option( "{$this->option}_high_water", $revision, false );
 		}
 	}
@@ -501,7 +502,7 @@ final class MigrationRunner implements ComponentInterface {
 			)
 		);
 
-		if ( \in_array( \wp_get_environment_type(), array( 'local', 'development' ), true ) ) {
+		if ( PluginBoot::is_development_environment() ) {
 			$this->unlock(); // Releasing the lock lets the fixed step run again on the next request.
 			throw $exception;
 		}
