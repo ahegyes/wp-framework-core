@@ -97,10 +97,10 @@ final class MigrationRunner implements ComponentInterface {
 	 * @param   list<(callable(): void)|BatchedMigrationStepInterface> $steps            The migration steps, append-only, where index 0 brings the data to revision 1.
 	 * @param   PsrLoggerInterface                                     $logger           The logger that records failures and warnings.
 	 * @param   SchedulerInterface                                     $scheduler        The scheduler that runs the runner's hook in the background.
-	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1 to 300, that a request spends on steps and batches before it pauses. Default is 20.
+	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1, that a request spends on steps and batches before it pauses. Default is 20.
 	 * @param   PsrClockInterface|null                                 $clock            Optional. The clock. Default is the system clock.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the batch time limit is outside 1 to 300 seconds or the option name cannot name the lock.
+	 * @throws  InvalidArgumentException Thrown when the option name cannot name the lock.
 	 */
 	public function __construct(
 		protected string $plugin_file,
@@ -111,11 +111,6 @@ final class MigrationRunner implements ComponentInterface {
 		protected int $batch_time_limit = 20,
 		?PsrClockInterface $clock = null
 	) {
-		// A budget well under the lock's lifetime keeps a live run, even one with an overlong last batch, from being taken over.
-		if ( $batch_time_limit < 1 || $batch_time_limit > 300 ) {
-			throw new InvalidArgumentException( "Batch time limit '$batch_time_limit' is outside 1 to 300 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
 		$this->clock  = $clock ?? new SystemClock();
 		$this->lock   = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
 		$this->owner  = \wp_generate_uuid4();
