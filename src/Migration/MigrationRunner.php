@@ -73,16 +73,6 @@ final class MigrationRunner implements ComponentInterface {
 	protected string $owner;
 
 	/**
-	 * Whether this run took its lock over from a run that held it too long.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     bool
-	 */
-	protected bool $took_over = false;
-
-	/**
 	 * The time at which this request's budget ends, set when its first step or batch begins and kept for every later run in the request.
 	 *
 	 * @since   2.0.0
@@ -182,14 +172,42 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	public function run(): void {
 		$target = \count( $this->steps );
-		if ( self::get_revision( $this->option ) === $target || ! $this->lock() ) {
+		if ( self::get_revision( $this->option ) === $target ) {
+			return;
+		}
+
+		try {
+			$claim = $this->lock->acquire( $this->owner );
+		} catch ( RuntimeException $exception ) {
+			$this->logger->warning(
+				'Could not take the data migration lock: {error}',
+				array(
+					'error'     => $exception->getMessage(),
+					'exception' => $exception,
+				)
+			);
+			return;
+		}
+
+		if ( LockClaim::Busy === $claim ) {
 			return;
 		}
 
 		$revision = null;
 		try {
-			$stored_row = $this->read_revision();
-			$revision   = $stored_row ?? 0;
+			try {
+				$row = OptionRows::get( $this->option );
+			} catch ( RuntimeException $exception ) {
+				throw new RuntimeException( "Could not read the stored data revision: {$exception->getMessage()}", 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			}
+
+			// A malformed revision stops the run, because reading it as 0 would run every step again.
+			$stored = \is_null( $row ) ? 0 : \filter_var( $row->raw, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE );
+			if ( \is_null( $stored ) || $stored < 0 ) {
+				throw new RuntimeException( "The stored data revision '$row->raw' is not a non-negative integer." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			}
+
+			$revision = $stored;
 			if ( $revision > $target ) {
 				$this->checkpoint( $target ); // A re-upgrade then re-runs the newer, convergent steps over the rollback-era data.
 				$this->logger->warning(
@@ -200,12 +218,12 @@ final class MigrationRunner implements ComponentInterface {
 					)
 				);
 				$revision = $target;
-			} elseif ( $this->took_over && \is_null( $this->get_error() ) ) {
+			} elseif ( LockClaim::TakenOver === $claim && \is_null( $this->get_error() ) ) {
 				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within 10 minutes.', $revision );
 				$this->logger->warning( 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
 			}
 
-			if ( \is_null( $stored_row ) ) {
+			if ( \is_null( $row ) ) {
 				\add_option(
 					"{$this->option}_first_run",
 					array(
@@ -223,9 +241,25 @@ final class MigrationRunner implements ComponentInterface {
 					return;
 				}
 
-				$step = $this->steps[ $revision ];
-				if ( $this->is_out_of_budget() || ( $step instanceof BatchedMigrationStepInterface && ! \doing_action( $this->get_hook() ) ) ) {
-					$this->pause();
+				$step         = $this->steps[ $revision ];
+				$memory_limit = \wp_convert_hr_to_bytes( (string) \ini_get( 'memory_limit' ) );
+				$spent        = ! \is_null( $this->deadline ) && ( $this->get_time() >= $this->deadline || ( 0 < $memory_limit && \memory_get_usage( true ) > 0.9 * $memory_limit ) );
+				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! \doing_action( $this->get_hook() ) ) ) {
+					// The lock goes first, so that the continuation can take it.
+					$this->unlock();
+
+					// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due now.
+					$hook      = new ScheduledHook( $this->get_hook() );
+					$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
+					if ( true !== $scheduled ) {
+						$this->logger->warning(
+							'Could not schedule the next data migration run: {error}',
+							array(
+								'error'     => $scheduled->get_error_message(),
+								'exception' => $scheduled->get_error_data(),
+							)
+						);
+					}
 					return;
 				}
 
@@ -248,10 +282,31 @@ final class MigrationRunner implements ComponentInterface {
 					$this->checkpoint( $revision + 1 );
 					++$revision;
 				}
-				$this->clear_error();
+
+				// The step or batch succeeded, so a recorded failure is no longer current.
+				if ( false !== \get_option( "{$this->option}_error" ) ) {
+					\delete_option( "{$this->option}_error" );
+				}
 			}
 		} catch ( \Throwable $exception ) {
-			$this->fail( $exception, $revision );
+			if ( $this->holds_lock( $revision ?? 0 ) ) {
+				$this->record_error( $exception->getMessage(), $revision );
+			}
+
+			$this->logger->error(
+				'Data migration failed: {message}',
+				array(
+					'message'   => $exception->getMessage(),
+					'exception' => $exception,
+				)
+			);
+
+			// In production the lock stays until its hold expires, so a failing step runs again 10 minutes later; elsewhere the fixed step runs on the next request.
+			if ( PluginBoot::is_development_environment() ) {
+				$this->unlock();
+				throw $exception;
+			}
+
 			return;
 		}
 
@@ -332,32 +387,6 @@ final class MigrationRunner implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Takes the lock, or takes it over from a run whose hold expired, and returns whether this run holds it.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  bool
-	 */
-	protected function lock(): bool {
-		try {
-			$claim = $this->lock->acquire( $this->owner );
-		} catch ( RuntimeException $exception ) {
-			$this->logger->warning(
-				'Could not take the data migration lock: {error}',
-				array(
-					'error'     => $exception->getMessage(),
-					'exception' => $exception,
-				)
-			);
-			return false;
-		}
-
-		$this->took_over = LockClaim::TakenOver === $claim;
-		return LockClaim::Busy !== $claim;
-	}
-
-	/**
 	 * Refreshes this run's hold on the lock and returns whether the run still holds it, logging a warning when another run took the lock over or the refresh failed.
 	 *
 	 * @since   2.0.0
@@ -409,59 +438,6 @@ final class MigrationRunner implements ComponentInterface {
 	}
 
 	/**
-	 * Releases the lock, then schedules the runner's hook, so that the continuation can take the lock this run held.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	protected function pause(): void {
-		$this->unlock();
-
-		// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due now.
-		$hook      = new ScheduledHook( $this->get_hook() );
-		$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
-		if ( true !== $scheduled ) {
-			$this->logger->warning(
-				'Could not schedule the next data migration run: {error}',
-				array(
-					'error'     => $scheduled->get_error_message(),
-					'exception' => $scheduled->get_error_data(),
-				)
-			);
-		}
-	}
-
-	/**
-	 * Returns the stored revision read past the options cache, or null when no revision is stored.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @throws  RuntimeException Thrown when the read fails or the stored value is not a non-negative integer, so that neither counts as 0.
-	 *
-	 * @return  int<0, max>|null
-	 */
-	protected function read_revision(): ?int {
-		try {
-			$row = OptionRows::get( $this->option );
-		} catch ( RuntimeException $exception ) {
-			throw new RuntimeException( "Could not read the stored data revision: {$exception->getMessage()}", 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		if ( \is_null( $row ) ) {
-			return null;
-		}
-
-		$value    = $row->raw;
-		$revision = \filter_var( $value, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE );
-		if ( \is_null( $revision ) || $revision < 0 ) {
-			throw new RuntimeException( "The stored data revision '$value' is not a non-negative integer." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		return $revision;
-	}
-
-	/**
 	 * Records a reached revision, and the highest revision ever reached.
 	 *
 	 * @since   2.0.0
@@ -478,38 +454,6 @@ final class MigrationRunner implements ComponentInterface {
 
 		if ( $revision > self::get_revision( "{$this->option}_high_water" ) ) {
 			\update_option( "{$this->option}_high_water", $revision, false );
-		}
-	}
-
-	/**
-	 * Records and logs a failure, then releases the lock and rethrows in a local or development environment.
-	 *
-	 * In production the lock stays for its lifetime, so a failing step runs again every 10 minutes.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   \Throwable $exception The failure.
-	 * @param   int|null   $revision  The revision whose step failed, or null for a failure before any step.
-	 *
-	 * @throws  \Throwable Thrown in a local or development environment.
-	 */
-	protected function fail( \Throwable $exception, ?int $revision ): void {
-		if ( $this->holds_lock( $revision ?? 0 ) ) {
-			$this->record_error( $exception->getMessage(), $revision );
-		}
-
-		$this->logger->error(
-			'Data migration failed: {message}',
-			array(
-				'message'   => $exception->getMessage(),
-				'exception' => $exception,
-			)
-		);
-
-		if ( PluginBoot::is_development_environment() ) {
-			$this->unlock(); // Releasing the lock lets the fixed step run again on the next request.
-			throw $exception;
 		}
 	}
 
@@ -535,18 +479,6 @@ final class MigrationRunner implements ComponentInterface {
 			),
 			false
 		);
-	}
-
-	/**
-	 * Deletes the error row once a step or batch succeeds, since the failure it records is no longer current.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	protected function clear_error(): void {
-		if ( false !== \get_option( "{$this->option}_error" ) ) {
-			\delete_option( "{$this->option}_error" );
-		}
 	}
 
 	/**
@@ -578,24 +510,6 @@ final class MigrationRunner implements ComponentInterface {
 			'since'    => $since,
 			'at'       => $at,
 		);
-	}
-
-	/**
-	 * Returns whether the request's time or memory budget is spent.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  bool
-	 */
-	protected function is_out_of_budget(): bool {
-		if ( \is_null( $this->deadline ) ) {
-			return false;
-		}
-
-		$memory_limit = \wp_convert_hr_to_bytes( (string) \ini_get( 'memory_limit' ) );
-
-		return $this->get_time() >= $this->deadline || ( 0 < $memory_limit && \memory_get_usage( true ) > 0.9 * $memory_limit );
 	}
 
 	/**
