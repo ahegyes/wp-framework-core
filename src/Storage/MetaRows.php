@@ -3,7 +3,6 @@
 namespace DeepWebSolutions\Framework\Core\Storage;
 
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 
 \defined( 'ABSPATH' ) || exit;
@@ -29,16 +28,6 @@ final class MetaRows {
 	 */
 	protected const int MAX_KEY_LENGTH = 255;
 
-	/**
-	 * The database connection.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     \wpdb
-	 */
-	protected \wpdb $wpdb;
-
 	// endregion
 
 	// region MAGIC METHODS
@@ -51,13 +40,11 @@ final class MetaRows {
 	 *
 	 * @param   string $meta_type The meta type, such as user, post, term, comment or blog.
 	 *
-	 * @throws  LogicException           Thrown when WordPress has no database connection.
 	 * @throws  InvalidArgumentException Thrown when WordPress keeps no metadata of the type.
 	 */
 	public function __construct(
 		protected string $meta_type
 	) {
-		$this->wpdb = Database::get_wpdb();
 		$this->get_table();
 	}
 
@@ -71,6 +58,8 @@ final class MetaRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   int    $object_id The object's id.
 	 * @param   string $key       The meta key, matched byte for byte, as the meta cache matches it.
 	 *
@@ -79,7 +68,8 @@ final class MetaRows {
 	 * @return  list<MetaRow>
 	 */
 	public function list( int $object_id, string $key ): array {
-		$wpdb  = $this->wpdb;
+		global $wpdb;
+
 		$table = $this->get_table();
 
 		$wpdb->flush();
@@ -140,6 +130,8 @@ final class MetaRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   MetaRow $observed The row as it was read or added.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the row belongs to another table, of another meta type or of a site switched away from since.
@@ -148,7 +140,7 @@ final class MetaRows {
 	 * @return  bool
 	 */
 	public function delete( MetaRow $observed ): bool {
-		$wpdb = $this->wpdb;
+		global $wpdb;
 
 		// Meta ids repeat across the per-site tables, so a row read on another site would name an unrelated row here.
 		$table = $this->get_table();

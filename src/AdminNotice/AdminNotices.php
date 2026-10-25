@@ -102,7 +102,6 @@ final class AdminNotices implements ComponentInterface {
 	 * @param   RecipientStateStoreInterface|null                  $states Optional. The recipient-state store. Default is the user meta store.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
-	 * @throws  LogicException           Thrown when WordPress has no database connection for a default store.
 	 */
 	public function __construct(
 		protected string $prefix,

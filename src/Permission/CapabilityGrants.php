@@ -4,7 +4,6 @@ namespace DeepWebSolutions\Framework\Core\Permission;
 
 use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
-use DeepWebSolutions\Framework\Core\Storage\Database;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
@@ -184,13 +183,16 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $option    The name of the option written.
 	 * @param   mixed  $old_value The option's previous value.
 	 * @param   mixed  $value     The option's new value.
 	 */
 	public function forget_deleted_roles( string $option, mixed $old_value, mixed $value ): void {
-		$wpdb = Database::find_wpdb();
-		if ( \is_null( $wpdb ) || $wpdb->get_blog_prefix() . 'user_roles' !== $option || ! \is_array( $old_value ) ) {
+		global $wpdb;
+
+		if ( $wpdb->get_blog_prefix() . 'user_roles' !== $option || ! \is_array( $old_value ) ) {
 			return;
 		}
 

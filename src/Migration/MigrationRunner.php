@@ -12,7 +12,6 @@ use DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
 use DeepWebSolutions\Framework\Core\Storage\OptionRow;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 use Psr\Clock\ClockInterface as PsrClockInterface;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
@@ -108,11 +107,9 @@ final class MigrationRunner implements ComponentInterface {
 	 * @param   PsrLoggerInterface                                     $logger           The logger that records failures and warnings.
 	 * @param   SchedulerInterface                                     $scheduler        The scheduler that runs the runner's hook in the background.
 	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1 to 300, that a request spends on steps and batches before it pauses. Default is 20.
-	 * @param   \wpdb|null                                             $wpdb             Optional. The database connection. Default is the global one.
 	 * @param   PsrClockInterface|null                                 $clock            Optional. The clock. Default is the system clock.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the batch time limit is outside 1 to 300 seconds.
-	 * @throws  LogicException           Thrown when no database connection is given and the global one is missing.
 	 */
 	public function __construct(
 		protected string $plugin_file,
@@ -121,7 +118,6 @@ final class MigrationRunner implements ComponentInterface {
 		protected PsrLoggerInterface $logger,
 		protected SchedulerInterface $scheduler,
 		protected int $batch_time_limit = 20,
-		?\wpdb $wpdb = null,
 		?PsrClockInterface $clock = null
 	) {
 		// A budget well under the lock's lifetime keeps a live run, even one with an overlong last batch, from being taken over.
@@ -129,7 +125,7 @@ final class MigrationRunner implements ComponentInterface {
 			throw new InvalidArgumentException( "Batch time limit '$batch_time_limit' is outside 1 to 300 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->rows   = new OptionRows( $wpdb );
+		$this->rows   = new OptionRows();
 		$this->clock  = $clock ?? new SystemClock();
 		$this->logger = new GuardedLogger( $logger, $option );
 	}

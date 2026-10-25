@@ -5,9 +5,7 @@ namespace DeepWebSolutions\Framework\Core\AdminNotice\Stores;
 use DeepWebSolutions\Framework\Core\AdminNotice\Notice;
 use DeepWebSolutions\Framework\Core\AdminNotice\NoticeContext;
 use DeepWebSolutions\Framework\Core\AdminNotice\StoredNotice;
-use DeepWebSolutions\Framework\Core\Storage\Database;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -171,15 +169,17 @@ final class NoticeRecords {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   int    $site_id The blog id.
 	 * @param   string $name    The name of the rows, under the plugin's prefix.
-	 *
-	 * @throws  LogicException Thrown when WordPress has no database connection.
 	 *
 	 * @return  string
 	 */
 	public static function get_user_meta_key( int $site_id, string $name ): string {
-		return Database::get_wpdb()->get_blog_prefix( $site_id ) . $name;
+		global $wpdb;
+
+		return $wpdb->get_blog_prefix( $site_id ) . $name;
 	}
 
 	// endregion

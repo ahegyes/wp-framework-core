@@ -4,7 +4,6 @@ namespace DeepWebSolutions\Framework\Core\Scheduling\Backends;
 
 use DeepWebSolutions\Framework\Core\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
-use DeepWebSolutions\Framework\Core\Storage\Database;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -140,11 +139,14 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
+		global $wpdb;
+
 		// Action Scheduler reports neither a failed lookup nor a failed cancel, so only the query error shows one.
-		$wpdb = Database::get_wpdb();
 		$wpdb->flush();
 
 		\as_unschedule_all_actions( $hook );

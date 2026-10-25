@@ -2,13 +2,12 @@
 
 namespace DeepWebSolutions\Framework\Core\Storage;
 
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Resolves WordPress's database connection, tells which values the storage classes keep, and checks a query for its own error.
+ * Tells which values the storage classes keep, and checks a query for its own error.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -29,33 +28,6 @@ final class Database {
 	// endregion
 
 	// region METHODS
-
-	/**
-	 * Returns WordPress's database connection.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @throws  LogicException Thrown when WordPress has no database connection.
-	 *
-	 * @return  \wpdb
-	 */
-	public static function get_wpdb(): \wpdb {
-		return self::find_wpdb() ?? throw new LogicException( 'WordPress has no wpdb connection.' );
-	}
-
-	/**
-	 * Returns WordPress's database connection, or null when it has none.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  \wpdb|null
-	 */
-	public static function find_wpdb(): ?\wpdb {
-		$wpdb = $GLOBALS['wpdb'] ?? null;
-		return $wpdb instanceof \wpdb ? $wpdb : null;
-	}
 
 	/**
 	 * Returns whether the value holds only scalars, null and arrays of them.

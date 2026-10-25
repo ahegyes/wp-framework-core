@@ -9,7 +9,6 @@ use DeepWebSolutions\Framework\Core\AdminNotice\RecipientStateStoreInterface;
 use DeepWebSolutions\Framework\Core\Storage\MetaRow;
 use DeepWebSolutions\Framework\Core\Storage\MetaRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 
 \defined( 'ABSPATH' ) || exit;
@@ -48,8 +47,6 @@ final class UserMetaRecipientStates implements RecipientStateStoreInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   string $prefix The plugin's prefix for storage keys.
-	 *
-	 * @throws  LogicException Thrown when WordPress has no database connection.
 	 */
 	public function __construct(
 		protected string $prefix

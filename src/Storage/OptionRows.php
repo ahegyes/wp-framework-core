@@ -3,7 +3,6 @@
 namespace DeepWebSolutions\Framework\Core\Storage;
 
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 
 \defined( 'ABSPATH' ) || exit;
@@ -29,36 +28,6 @@ final class OptionRows {
 	 */
 	protected const int MAX_NAME_LENGTH = 191;
 
-	/**
-	 * The database connection.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     \wpdb
-	 */
-	protected \wpdb $wpdb;
-
-	// endregion
-
-	// region MAGIC METHODS
-
-	/**
-	 * Constructor.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   \wpdb|null $wpdb Optional. The database connection. Default is WordPress's.
-	 *
-	 * @throws  LogicException Thrown when no connection is given and WordPress has none.
-	 */
-	public function __construct(
-		?\wpdb $wpdb = null
-	) {
-		$this->wpdb = $wpdb ?? Database::get_wpdb();
-	}
-
 	// endregion
 
 	// region METHODS
@@ -69,6 +38,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $name    The option name.
 	 * @param   int    $site_id Optional. The site whose table to read, where 0 is the current site. Default 0.
 	 *
@@ -78,7 +49,8 @@ final class OptionRows {
 	 * @return  OptionRow|null
 	 */
 	public function get( string $name, int $site_id = 0 ): ?OptionRow {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $site_id );
 		self::check_name( $name );
 
@@ -97,6 +69,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $prefix  The prefix, matched byte for byte.
 	 * @param   int    $site_id Optional. The site whose table to read, where 0 is the current site. Default 0.
 	 *
@@ -106,7 +80,8 @@ final class OptionRows {
 	 * @return  list<OptionRow>
 	 */
 	public function list( string $prefix, int $site_id = 0 ): array {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $site_id );
 		self::check_name( $prefix );
 
@@ -134,6 +109,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $name    The option name.
 	 * @param   mixed  $value   The value: a scalar, null, or an array of them.
 	 * @param   int    $site_id Optional. The site whose table to write, where 0 is the current site. Default 0.
@@ -144,7 +121,8 @@ final class OptionRows {
 	 * @return  OptionRow
 	 */
 	public function upsert( string $name, mixed $value, int $site_id = 0 ): OptionRow {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $site_id );
 		$raw     = $this->serialize( $name, $value );
 
@@ -161,6 +139,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $name    The option name.
 	 * @param   mixed  $value   The value: a scalar, null, or an array of them.
 	 * @param   int    $site_id Optional. The site whose table to write, where 0 is the current site. Default 0.
@@ -171,7 +151,8 @@ final class OptionRows {
 	 * @return  OptionRow|null
 	 */
 	public function insert( string $name, mixed $value, int $site_id = 0 ): ?OptionRow {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $site_id );
 		$raw     = $this->serialize( $name, $value );
 
@@ -190,6 +171,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   OptionRow $observed The row as it was read.
 	 * @param   mixed     $value    The new value: a scalar, null, or an array of them, stored other than the observed one.
 	 *
@@ -199,7 +182,8 @@ final class OptionRows {
 	 * @return  OptionRow|null
 	 */
 	public function replace( OptionRow $observed, mixed $value ): ?OptionRow {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $observed->site_id );
 
 		$raw = $this->serialize( $observed->name, $value );
@@ -222,6 +206,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   OptionRow $observed The row as it was read.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the row's site is invalid.
@@ -230,7 +216,8 @@ final class OptionRows {
 	 * @return  bool
 	 */
 	public function delete( OptionRow $observed ): bool {
-		$wpdb    = $this->wpdb;
+		global $wpdb;
+
 		$site_id = $this->get_site_id( $observed->site_id );
 
 		$deleted = $this->write( $wpdb->prepare( 'DELETE FROM %i WHERE option_name = %s AND CAST( option_value AS BINARY ) = CAST( %s AS BINARY )', $this->get_table( $site_id ), $observed->name, $observed->raw ) ?? '', "Could not delete option '$observed->name'" );
@@ -243,10 +230,12 @@ final class OptionRows {
 	}
 
 	/**
-	 * Deletes the option whatever it holds, through delete_option() and so on WordPress's own connection, which fires the option hooks and clears the option's caches.
+	 * Deletes the option whatever it holds, through delete_option(), which fires the option hooks and clears the option's caches.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
 	 *
 	 * @param   string $name    The option name.
 	 * @param   int    $site_id Optional. The site whose option to delete, where 0 is the current site. Default 0.
@@ -255,11 +244,11 @@ final class OptionRows {
 	 * @throws  RuntimeException         Thrown when the delete fails.
 	 */
 	public function remove( string $name, int $site_id = 0 ): void {
+		global $wpdb;
+
 		self::check_name( $name );
 		$switched = self::switch_to_site( $this->get_site_id( $site_id ) );
 		try {
-			$wpdb = Database::get_wpdb();
-
 			// An absent option and a failed delete both make delete_option() return false, so only the error tells them apart.
 			$wpdb->flush();
 			\delete_option( $name );
@@ -326,12 +315,16 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   int $site_id The blog id.
 	 *
 	 * @return  string
 	 */
 	protected function get_table( int $site_id ): string {
-		return $this->wpdb->get_blog_prefix( $site_id ) . 'options';
+		global $wpdb;
+
+		return $wpdb->get_blog_prefix( $site_id ) . 'options';
 	}
 
 	/**
@@ -381,6 +374,8 @@ final class OptionRows {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
 	 * @param   string $query   The prepared statement.
 	 * @param   string $failure The message that opens the exception when the write fails.
 	 *
@@ -389,9 +384,11 @@ final class OptionRows {
 	 * @return  int
 	 */
 	protected function write( string $query, string $failure ): int {
-		$changed = $this->wpdb->query( $query ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by the caller; the options API cannot write conditionally.
+		global $wpdb;
+
+		$changed = $wpdb->query( $query ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by the caller; the options API cannot write conditionally.
 		if ( false === $changed ) {
-			throw new RuntimeException( "$failure: {$this->wpdb->last_error}" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new RuntimeException( "$failure: $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		return \is_int( $changed ) ? $changed : 0;

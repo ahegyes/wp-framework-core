@@ -3,7 +3,6 @@
 namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Core\Caching\Exceptions\InvalidCacheKeyException;
-use DeepWebSolutions\Framework\Core\Storage\Database;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
@@ -122,19 +121,22 @@ final class TransientCache implements PsrCacheInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @global  \wpdb $wpdb The WordPress database connection.
 	 */
 	#[\Override]
 	public function delete( string $key ): bool {
+		global $wpdb;
+
 		$name = $this->get_name( $key );
-		$wpdb = Database::find_wpdb();
-		$wpdb?->flush();
+		$wpdb->flush();
 		$deleted = \delete_transient( $name );
 		if ( \wp_using_ext_object_cache() || \wp_installing() ) {
 			return $deleted || false === \get_transient( $name );
 		}
 
 		// An absent entry and a failed delete both make delete_transient() return false, and delete_option() marks the option absent in either case, so only the query error tells them apart, and it also shows a timeout row left behind.
-		return '' === ( $wpdb->last_error ?? '' );
+		return '' === $wpdb->last_error;
 	}
 
 	/**
