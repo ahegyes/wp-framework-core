@@ -31,7 +31,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 *
 	 * @param   string             $ledger_option The option that stores, on each site, the fingerprint of the last run and the grants made, autoloaded.
 	 * @param   Pairs              $grants        The capabilities to grant, as lists keyed by role name.
-	 * @param   PsrLoggerInterface $logger        The logger that records the capability changes that did not persist.
+	 * @param   PsrLoggerInterface $logger        The logger that records the writes that did not persist.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the option name or the grants are invalid.
 	 */
@@ -132,6 +132,12 @@ final class CapabilityGrants implements ComponentInterface {
 		// The pending write precedes the grants, so a request killed after granting leaves the next run a record that tells its grants from hand grants.
 		if ( array() !== $granted ) {
 			$this->write_row( '', $ledger, $granted );
+			// update_option() also returns false for an unchanged value, so the record is read back.
+			if ( $this->get_row()['pending'] !== $granted ) {
+				$this->logger->warning( 'The ledger row did not keep the pending grants, so the next request makes them.' );
+				return;
+			}
+
 			foreach ( $granted as $role => $caps ) {
 				foreach ( $caps as $cap ) {
 					$roles->get_role( $role )?->add_cap( $cap );
