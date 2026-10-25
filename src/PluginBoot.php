@@ -25,7 +25,7 @@ final class PluginBoot {
 	 *
 	 * @var     'pending'|'blocked'|'failed'|'booted'
 	 */
-	public protected(set) string $status = 'pending';
+	protected(set) string $status = 'pending';
 
 	// endregion
 
