@@ -42,16 +42,6 @@ final class MigrationRunner implements ComponentInterface {
 	protected const int LOCK_TTL = 600;
 
 	/**
-	 * The option rows that hold the lock and the stored revision, read past the options cache.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     OptionRows
-	 */
-	protected OptionRows $rows;
-
-	/**
 	 * The clock that the lock and the batch budget read.
 	 *
 	 * @since   2.0.0
@@ -125,7 +115,6 @@ final class MigrationRunner implements ComponentInterface {
 			throw new InvalidArgumentException( "Batch time limit '$batch_time_limit' is outside 1 to 300 seconds." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->rows   = new OptionRows();
 		$this->clock  = $clock ?? new SystemClock();
 		$this->logger = new GuardedLogger( $logger, $option );
 	}
@@ -344,12 +333,12 @@ final class MigrationRunner implements ComponentInterface {
 		$this->took_over = false;
 
 		try {
-			$this->lock = $this->rows->insert( $this->get_lock_name(), $now );
+			$this->lock = OptionRows::insert( $this->get_lock_name(), $now );
 			if ( \is_null( $this->lock ) ) {
 				// A lock row that holds no timestamp counts as expired, so a corrupt row never blocks the migrations.
-				$held = $this->rows->get( $this->get_lock_name() );
+				$held = OptionRows::get( $this->get_lock_name() );
 				if ( ! \is_null( $held ) && ( \filter_var( $held->raw, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) < $now - self::LOCK_TTL ) {
-					$this->lock      = $this->rows->replace( $held, $now );
+					$this->lock      = OptionRows::replace( $held, $now );
 					$this->took_over = ! \is_null( $this->lock );
 				}
 			}
@@ -373,7 +362,7 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function holds_lock( int $revision ): bool {
 		try {
-			$held = $this->rows->get( $this->get_lock_name() );
+			$held = OptionRows::get( $this->get_lock_name() );
 		} catch ( RuntimeException ) {
 			$held = null;
 		}
@@ -396,7 +385,7 @@ final class MigrationRunner implements ComponentInterface {
 	protected function unlock(): void {
 		try {
 			if ( ! \is_null( $this->lock ) ) {
-				$this->rows->delete( $this->lock );
+				OptionRows::delete( $this->lock );
 			}
 		} catch ( RuntimeException $exception ) {
 			$this->logger->warning( 'Could not release the data migration lock, which expires in 10 minutes: {error}', array( 'error' => $exception->getMessage() ) );
@@ -434,7 +423,7 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function read_revision(): ?int {
 		try {
-			$row = $this->rows->get( $this->option );
+			$row = OptionRows::get( $this->option );
 		} catch ( RuntimeException $exception ) {
 			throw new RuntimeException( "Could not read the stored data revision: {$exception->getMessage()}", 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}

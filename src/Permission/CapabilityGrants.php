@@ -281,7 +281,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	protected function get_stored_roles( string $role_key ): mixed {
 		try {
-			return ( new OptionRows() )->get( $role_key )?->value;
+			return OptionRows::get( $role_key )?->value;
 		} catch ( RuntimeException ) {
 			return null;
 		}

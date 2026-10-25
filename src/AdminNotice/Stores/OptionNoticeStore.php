@@ -23,20 +23,6 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
  * @internal
  */
 final class OptionNoticeStore implements NoticeStoreInterface {
-	// region FIELDS AND CONSTANTS
-
-	/**
-	 * The option rows of every site.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     OptionRows
-	 */
-	protected OptionRows $rows;
-
-	// endregion
-
 	// region MAGIC METHODS
 
 	/**
@@ -49,9 +35,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	 */
 	public function __construct(
 		protected string $prefix
-	) {
-		$this->rows = new OptionRows();
-	}
+	) {}
 
 	// endregion
 
@@ -69,7 +53,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	public function save( Notice $notice, NoticeContext $context ): StoredNotice {
 		$name   = $this->get_option_prefix( $context ) . $notice->id;
 		$record = NoticeRecords::create( $notice, $context );
-		$this->rows->upsert( $name, NoticeRecords::encode( $record ), $this->get_site_id( $context ) );
+		OptionRows::upsert( $name, NoticeRecords::encode( $record ), $this->get_site_id( $context ) );
 
 		return $record;
 	}
@@ -84,7 +68,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	public function all( NoticeContext $context ): array {
 		$prefix  = $this->get_option_prefix( $context );
 		$records = array();
-		foreach ( $this->rows->list( $prefix, $this->get_site_id( $context ) ) as $row ) {
+		foreach ( OptionRows::list( $prefix, $this->get_site_id( $context ) ) as $row ) {
 			// A record must name its own option, so a plugin whose prefix extends this one's never shares its rows.
 			$record = NoticeRecords::decode( $row->value, $context );
 			if ( null === $record || $row->name !== $prefix . $record->notice->id ) {
@@ -92,7 +76,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 			}
 
 			if ( NoticeRecords::is_expired( $record ) ) {
-				$this->rows->delete( $row );
+				OptionRows::delete( $row );
 				continue;
 			}
 
@@ -110,9 +94,9 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function consume( StoredNotice $observed ): bool {
-		$row = $this->rows->get( $this->get_option_prefix( $observed->context ) . $observed->notice->id, $this->get_site_id( $observed->context ) );
+		$row = OptionRows::get( $this->get_option_prefix( $observed->context ) . $observed->notice->id, $this->get_site_id( $observed->context ) );
 
-		return null !== $row && NoticeRecords::has_generation( $row->value, $observed->generation ) && $this->rows->delete( $row );
+		return null !== $row && NoticeRecords::has_generation( $row->value, $observed->generation ) && OptionRows::delete( $row );
 	}
 
 	/**
@@ -123,7 +107,7 @@ final class OptionNoticeStore implements NoticeStoreInterface {
 	 */
 	#[\Override]
 	public function remove( string $id, NoticeContext $context ): void {
-		$this->rows->remove( $this->get_option_prefix( $context ) . $id, $this->get_site_id( $context ) );
+		OptionRows::remove( $this->get_option_prefix( $context ) . $id, $this->get_site_id( $context ) );
 	}
 
 	// endregion
