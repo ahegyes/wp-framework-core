@@ -9,7 +9,8 @@ use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Core\PluginBoot;
 use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 use DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
-use DeepWebSolutions\Framework\Core\Storage\OptionRow;
+use DeepWebSolutions\Framework\Core\Storage\Lock;
+use DeepWebSolutions\Framework\Core\Storage\LockClaim;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
@@ -32,7 +33,7 @@ final class MigrationRunner implements ComponentInterface {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The age in seconds after which another run takes over a held lock.
+	 * The seconds that a run's hold on the lock lasts after it is taken or refreshed, after which another run takes the lock over.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -52,14 +53,24 @@ final class MigrationRunner implements ComponentInterface {
 	protected PsrClockInterface $clock;
 
 	/**
-	 * The lock row as this run wrote it, or null without a lock.
+	 * The lock that keeps every other run out while one runs the steps.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     OptionRow|null
+	 * @var     Lock
 	 */
-	protected ?OptionRow $lock = null;
+	protected Lock $lock;
+
+	/**
+	 * The token that names this runner's hold on the lock.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $owner;
 
 	/**
 	 * Whether this run took its lock over from a run that held it too long.
@@ -99,7 +110,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1 to 300, that a request spends on steps and batches before it pauses. Default is 20.
 	 * @param   PsrClockInterface|null                                 $clock            Optional. The clock. Default is the system clock.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the batch time limit is outside 1 to 300 seconds.
+	 * @throws  InvalidArgumentException Thrown when the batch time limit is outside 1 to 300 seconds or the option name cannot name the lock.
 	 */
 	public function __construct(
 		protected string $plugin_file,
@@ -116,6 +127,8 @@ final class MigrationRunner implements ComponentInterface {
 		}
 
 		$this->clock  = $clock ?? new SystemClock();
+		$this->lock   = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
+		$this->owner  = \wp_generate_uuid4();
 		$this->logger = new GuardedLogger( $logger, $option );
 	}
 
@@ -319,9 +332,7 @@ final class MigrationRunner implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Takes the lock row, or takes it over once it is older than the lock's lifetime, and returns whether this run holds it.
-	 *
-	 * The lock bypasses the options cache, so that concurrent requests see each other's rows.
+	 * Takes the lock, or takes it over from a run whose hold expired, and returns whether this run holds it.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -329,29 +340,25 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  bool
 	 */
 	protected function lock(): bool {
-		$now             = $this->clock->now()->getTimestamp();
-		$this->took_over = false;
-
 		try {
-			$this->lock = OptionRows::insert( $this->get_lock_name(), $now );
-			if ( \is_null( $this->lock ) ) {
-				// A lock row that holds no timestamp counts as expired, so a corrupt row never blocks the migrations.
-				$held = OptionRows::get( $this->get_lock_name() );
-				if ( ! \is_null( $held ) && ( \filter_var( $held->raw, \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 ) < $now - self::LOCK_TTL ) {
-					$this->lock      = OptionRows::replace( $held, $now );
-					$this->took_over = ! \is_null( $this->lock );
-				}
-			}
+			$claim = $this->lock->acquire( $this->owner );
 		} catch ( RuntimeException $exception ) {
-			$this->lock = null;
-			$this->logger->warning( 'Could not take the data migration lock: {error}', array( 'error' => $exception->getMessage() ) );
+			$this->logger->warning(
+				'Could not take the data migration lock: {error}',
+				array(
+					'error'     => $exception->getMessage(),
+					'exception' => $exception,
+				)
+			);
+			return false;
 		}
 
-		return ! \is_null( $this->lock );
+		$this->took_over = LockClaim::TakenOver === $claim;
+		return LockClaim::Busy !== $claim;
 	}
 
 	/**
-	 * Returns whether the lock row still holds this run's timestamp, and logs a warning when another run took it over.
+	 * Refreshes this run's hold on the lock and returns whether the run still holds it, logging a warning when another run took the lock over or the refresh failed.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -362,36 +369,43 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function holds_lock( int $revision ): bool {
 		try {
-			$held = OptionRows::get( $this->get_lock_name() );
-		} catch ( RuntimeException ) {
-			$held = null;
-		}
+			if ( $this->lock->refresh( $this->owner ) ) {
+				return true;
+			}
 
-		if ( ! \is_null( $held ) && $held->raw === $this->lock?->raw ) {
-			return true;
+			$this->logger->warning( 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
+		} catch ( RuntimeException $exception ) {
+			$this->logger->warning(
+				'Could not refresh the data migration lock, so this run stopped at revision {revision}: {error}',
+				array(
+					'revision'  => $revision,
+					'error'     => $exception->getMessage(),
+					'exception' => $exception,
+				)
+			);
 		}
-
-		$this->logger->warning( 'Another run took over the data migration lock, so this run stopped at revision {revision}.', array( 'revision' => $revision ) );
 
 		return false;
 	}
 
 	/**
-	 * Deletes the lock row only while it still holds this run's timestamp, so that a takeover's lock survives.
+	 * Releases this run's hold on the lock, and leaves a lock that another run took over in place.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 */
 	protected function unlock(): void {
 		try {
-			if ( ! \is_null( $this->lock ) ) {
-				OptionRows::delete( $this->lock );
-			}
+			$this->lock->release( $this->owner );
 		} catch ( RuntimeException $exception ) {
-			$this->logger->warning( 'Could not release the data migration lock, which expires in 10 minutes: {error}', array( 'error' => $exception->getMessage() ) );
+			$this->logger->warning(
+				'Could not release the data migration lock, which expires in 10 minutes: {error}',
+				array(
+					'error'     => $exception->getMessage(),
+					'exception' => $exception,
+				)
+			);
 		}
-
-		$this->lock = null;
 	}
 
 	/**
@@ -407,7 +421,13 @@ final class MigrationRunner implements ComponentInterface {
 		$hook      = new ScheduledHook( $this->get_hook() );
 		$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
 		if ( true !== $scheduled ) {
-			$this->logger->warning( 'Could not schedule the next data migration run: {error}', array( 'error' => $scheduled->get_error_message() ) );
+			$this->logger->warning(
+				'Could not schedule the next data migration run: {error}',
+				array(
+					'error'     => $scheduled->get_error_message(),
+					'exception' => $scheduled->get_error_data(),
+				)
+			);
 		}
 	}
 
@@ -600,18 +620,6 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function get_hook(): string {
 		return "{$this->option}_run";
-	}
-
-	/**
-	 * Returns the name of the lock row.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @return  string
-	 */
-	protected function get_lock_name(): string {
-		return "{$this->option}_lock";
 	}
 
 	// endregion
