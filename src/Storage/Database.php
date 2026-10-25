@@ -54,7 +54,6 @@ final class Database {
 	 */
 	public static function find_wpdb(): ?\wpdb {
 		$wpdb = $GLOBALS['wpdb'] ?? null;
-
 		return $wpdb instanceof \wpdb ? $wpdb : null;
 	}
 

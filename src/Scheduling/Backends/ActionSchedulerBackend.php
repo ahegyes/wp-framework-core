@@ -68,7 +68,6 @@ final class ActionSchedulerBackend implements BackendInterface {
 		}
 
 		$version = \ActionScheduler_Versions::instance()->latest_version();
-
 		return \is_string( $version ) && \version_compare( $version, self::MINIMUM_VERSION, '>=' ) ? BackendState::Supported : BackendState::Unsupported;
 	}
 
@@ -133,7 +132,6 @@ final class ActionSchedulerBackend implements BackendInterface {
 	#[\Override]
 	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
 		\as_unschedule_all_actions( $hook->hook, $hook->args, $this->group );
-
 		return true;
 	}
 
@@ -148,6 +146,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 		// Action Scheduler reports neither a failed lookup nor a failed cancel, so only the query error shows one.
 		$wpdb = Database::get_wpdb();
 		$wpdb->flush();
+
 		\as_unschedule_all_actions( $hook );
 
 		return '' === $wpdb->last_error ? true : new \WP_Error( 'scheduler_failed', "Action Scheduler did not unschedule hook '$hook': $wpdb->last_error" );

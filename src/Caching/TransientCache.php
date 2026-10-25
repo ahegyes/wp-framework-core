@@ -280,7 +280,6 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	protected function get_generation(): ?string {
 		$generation = \get_option( $this->generation_option );
-
 		return \is_string( $generation ) && '' !== $generation ? $generation : null;
 	}
 
@@ -296,9 +295,7 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	protected function start_generation(): ?string {
 		$generation = \bin2hex( \random_bytes( 8 ) );
-
-		// Autoloaded, because every read of the cache needs the generation.
-		return \update_option( $this->generation_option, $generation, true ) ? $generation : null;
+		return \update_option( $this->generation_option, $generation, true ) ? $generation : null; // Autoloaded, because every read of the cache needs the generation.
 	}
 
 	/**

@@ -100,7 +100,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			}
 
 			$backend = $this->get_writable_backend();
-
 			return $backend instanceof \WP_Error ? $backend : $backend->enqueue( $hook, $priority, true );
 		} catch ( \Throwable $exception ) {
 			return self::get_failure( $exception );
@@ -133,7 +132,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			}
 
 			$backend = $this->get_writable_backend();
-
 			return $backend instanceof \WP_Error ? $backend : $backend->schedule_single( $hook, $timestamp, $priority );
 		} catch ( \Throwable $exception ) {
 			return self::get_failure( $exception );
@@ -186,7 +184,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 		}
 
 		$census = $this->census( $hook );
-
 		return 0 < $census['pending'] + $census['running'];
 	}
 

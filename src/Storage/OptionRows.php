@@ -88,7 +88,6 @@ final class OptionRows {
 		Database::check_query( $wpdb, "Could not read option '$name'" );
 
 		$raw = \is_array( $row ) ? ( $row['option_value'] ?? null ) : null;
-
 		return \is_string( $raw ) ? $this->make_row( $site_id, $name, $raw ) : null;
 	}
 
@@ -182,7 +181,6 @@ final class OptionRows {
 		}
 
 		$this->forget( $site_id, $name );
-
 		return $this->make_row( $site_id, $name, $raw );
 	}
 
@@ -203,10 +201,9 @@ final class OptionRows {
 	public function replace( OptionRow $observed, mixed $value ): ?OptionRow {
 		$wpdb    = $this->wpdb;
 		$site_id = $this->get_site_id( $observed->site_id );
-		$raw     = $this->serialize( $observed->name, $value );
 
-		// The database reports no affected row for an unchanged value, which would read as a lost race.
-		if ( $raw === $observed->raw ) {
+		$raw = $this->serialize( $observed->name, $value );
+		if ( $raw === $observed->raw ) { // The database reports no affected row for an unchanged value, which would read as a lost race.
 			throw new InvalidArgumentException( "The new value of option '$observed->name' is stored as the observed one." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
@@ -216,7 +213,6 @@ final class OptionRows {
 		}
 
 		$this->forget( $site_id, $observed->name );
-
 		return $this->make_row( $site_id, $observed->name, $raw );
 	}
 
@@ -243,7 +239,6 @@ final class OptionRows {
 		}
 
 		$this->forget( $site_id, $observed->name );
-
 		return true;
 	}
 
@@ -361,7 +356,6 @@ final class OptionRows {
 		}
 
 		$raw = \maybe_serialize( $value );
-
 		return \is_scalar( $raw ) ? (string) $raw : '';
 	}
 
@@ -448,7 +442,6 @@ final class OptionRows {
 		}
 
 		\switch_to_blog( $site_id );
-
 		return true;
 	}
 

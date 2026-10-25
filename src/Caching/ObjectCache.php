@@ -62,12 +62,12 @@ final class ObjectCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function set( string $key, mixed $value, null|int|\DateInterval $ttl = null ): bool {
-		$name     = \md5( CacheEntries::check_key( $key ) );
 		$lifetime = CacheEntries::get_lifetime( $ttl );
 		if ( ! \is_null( $lifetime ) && $lifetime <= 0 ) {
 			return $this->delete( $key );
 		}
 
+		$name = \md5( CacheEntries::check_key( $key ) );
 		return \wp_cache_set( $name, CacheEntries::wrap( $value, $this->get_salt() ), $this->group, $lifetime ?? 0 );
 	}
 
@@ -80,7 +80,6 @@ final class ObjectCache implements PsrCacheInterface {
 	#[\Override]
 	public function delete( string $key ): bool {
 		$name = \md5( CacheEntries::check_key( $key ) );
-
 		return \wp_cache_delete( $name, $this->group ) || $this->is_absent( $name );
 	}
 
@@ -93,9 +92,7 @@ final class ObjectCache implements PsrCacheInterface {
 	#[\Override]
 	public function clear(): bool {
 		\wp_cache_set_last_changed( $this->group );
-
-		// The last_changed time repeats within a microsecond, so an entry stored just before it could keep its salt.
-		return \wp_cache_set( 'last_changed', \bin2hex( \random_bytes( 8 ) ), $this->group );
+		return \wp_cache_set( 'last_changed', \bin2hex( \random_bytes( 8 ) ), $this->group ); // The last_changed time repeats within a microsecond, so an entry stored just before it could keep its salt.
 	}
 
 	/**
@@ -166,13 +163,7 @@ final class ObjectCache implements PsrCacheInterface {
 		}
 
 		$stored = \wp_cache_set_multiple( $entries, $this->group, $lifetime ?? 0 );
-		foreach ( \array_keys( $entries ) as $name ) {
-			if ( true !== ( $stored[ $name ] ?? false ) ) {
-				return false;
-			}
-		}
-
-		return true;
+		return \array_all( \array_keys( $entries ), fn( $name ) => true === ( $stored[ $name ] ?? false ) );
 	}
 
 	/**
@@ -238,7 +229,6 @@ final class ObjectCache implements PsrCacheInterface {
 	 */
 	protected function find_salt(): ?string {
 		$salt = \wp_cache_get( 'last_changed', $this->group );
-
 		return \is_string( $salt ) && '' !== $salt ? $salt : null;
 	}
 
@@ -294,7 +284,6 @@ final class ObjectCache implements PsrCacheInterface {
 	 */
 	protected function is_absent( string $name ): bool {
 		\wp_cache_get( $name, $this->group, false, $found );
-
 		return true !== $found;
 	}
 

@@ -106,7 +106,6 @@ final class CacheEntries {
 		}
 
 		$now = new \DateTimeImmutable( '@' . \time() );
-
 		return $now->add( $ttl )->getTimestamp() - $now->getTimestamp();
 	}
 
@@ -148,7 +147,6 @@ final class CacheEntries {
 		}
 
 		$value = $entry['value'];
-
 		return array( \is_string( $value ) ? \maybe_unserialize( $value ) : $value );
 	}
 

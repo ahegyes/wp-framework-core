@@ -19,14 +19,14 @@ final class PluginKernel {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The classes constructed, in walk order, whether or not registration reached them.
+	 * The classes constructed, in walk order, whether registration reached them.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @var     list<class-string<ComponentInterface>>
 	 */
-	public protected(set) array $resolved = array();
+	protected(set) array $resolved = array();
 
 	/**
 	 * The classes whose gate returned false.
@@ -36,7 +36,7 @@ final class PluginKernel {
 	 *
 	 * @var     list<class-string<ComponentInterface>>
 	 */
-	public protected(set) array $skipped = array();
+	protected(set) array $skipped = array();
 
 	/**
 	 * The classes walked so far, as keys.
@@ -105,14 +105,15 @@ final class PluginKernel {
 	protected function resolve( array $classes ): array {
 		$components = array();
 		foreach ( $classes as $class ) {
+			if ( ! \is_a( $class, ComponentInterface::class, true ) ) {
+				throw new LogicException( "Class '$class' does not implement ComponentInterface." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			}
+
 			if ( isset( $this->visited[ $class ] ) ) {
 				throw new LogicException( "Component '$class' appears twice in the tree." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 			}
 			$this->visited[ $class ] = true;
 
-			if ( ! \is_a( $class, ComponentInterface::class, true ) ) {
-				throw new LogicException( "Class '$class' does not implement ComponentInterface." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-			}
 			if ( \is_a( $class, ConditionalComponentInterface::class, true ) && ! $class::should_load() ) {
 				$this->skipped[] = $class;
 				continue;
@@ -123,8 +124,9 @@ final class PluginKernel {
 				throw new LogicException( "The container entry '$class' has type '" . \get_debug_type( $component ) . "', not that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 			}
 
-			$components[]     = $component;
 			$this->resolved[] = $class;
+
+			$components[] = $component;
 			if ( \is_a( $class, CompositeComponentInterface::class, true ) ) {
 				// The declared class names the children, so no runtime state can add an unvisited node.
 				\array_push( $components, ...$this->resolve( $class::get_child_component_classes() ) );
