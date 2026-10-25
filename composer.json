@@ -1,6 +1,6 @@
 {
   "name": "ahegyes/wp-framework-core",
-  "description": "Plugin kernel for WordPress: a gated component tree on a PSR-11 container, a boot error boundary, migrations, background scheduling, option and meta rows with conditional writes, admin notices, role capability grants, PSR-16 transient and object caches and an uninstall engine.",
+  "description": "The plugin kernel. A plugin is composed of small components that load only where they apply, on WordPress's own APIs, with the infrastructure WordPress leaves every plugin to rebuild.",
   "type": "library",
   "license": "GPL-2.0-or-later",
   "homepage": "https://github.com/ahegyes/wordpress-framework",

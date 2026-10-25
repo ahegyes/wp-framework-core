@@ -1,6 +1,6 @@
 # wp-framework-core
 
-Plugin kernel for WordPress: a gated component tree on a PSR-11 container, a boot error boundary, migrations, background scheduling, option and meta rows with conditional writes, admin notices, role capability grants, PSR-16 transient and object caches and an uninstall engine.
+The plugin kernel. A plugin is composed of small components that load only where they apply, on WordPress's own APIs, with the infrastructure WordPress leaves every plugin to rebuild.
 
 It builds on wp-framework-bootstrap and wp-framework-shared.
 
