@@ -139,19 +139,12 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
-	 *
-	 * @global  \wpdb $wpdb The WordPress database connection.
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
-		global $wpdb;
-
-		// Action Scheduler reports neither a failed lookup nor a failed cancel, so only the query error shows one.
-		$wpdb->flush();
-
+		// Best effort, since Action Scheduler reports no failure: at worst the hook's pending actions stay and run, or fail without a callback, until a later call succeeds.
 		\as_unschedule_all_actions( $hook );
-
-		return '' === $wpdb->last_error ? true : new \WP_Error( 'scheduler_failed', "Action Scheduler did not unschedule hook '$hook': $wpdb->last_error" );
+		return true;
 	}
 
 	// endregion

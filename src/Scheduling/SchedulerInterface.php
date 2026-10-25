@@ -91,7 +91,9 @@ interface SchedulerInterface {
 	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error;
 
 	/**
-	 * Cancels every pending invocation of the hook name, whatever its arguments and Action Scheduler group.
+	 * Cancels every pending invocation of the hook name, whatever its arguments and Action Scheduler group, as best effort.
+	 *
+	 * Action Scheduler reports no failed cancellation, so its pending invocations can stay after a true result.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
