@@ -38,15 +38,15 @@ final class PluginBoot {
 	 * @version 2.0.0
 	 *
 	 * @param   string             $plugin_file The path to the plugin's entry file.
-	 * @param   string             $hook_prefix The prefix of the plugin's hook names.
+	 * @param   string             $prefix      The prefix of the plugin's hook names, transients and log channel.
 	 * @param   PsrLoggerInterface $logger      The logger that records boot failures.
 	 */
 	public function __construct(
 		protected string $plugin_file,
-		protected string $hook_prefix,
+		protected string $prefix,
 		protected PsrLoggerInterface $logger
 	) {
-		$this->logger = new GuardedLogger( $logger, $hook_prefix );
+		$this->logger = new GuardedLogger( $logger, $prefix );
 	}
 
 	// endregion
@@ -81,7 +81,7 @@ final class PluginBoot {
 			 *
 			 * @param   \Throwable $exception The failure that stopped the composition.
 			 */
-			\do_action( "{$this->hook_prefix}_initialization_failure", $exception );
+			\do_action( "{$this->prefix}_initialization_failure", $exception );
 			if ( self::is_development_environment() ) {
 				throw $exception;
 			}
@@ -98,7 +98,7 @@ final class PluginBoot {
 			 * @since   2.0.0
 			 * @version 2.0.0
 			 */
-			\do_action( "{$this->hook_prefix}_initialization_blocked" );
+			\do_action( "{$this->prefix}_initialization_blocked" );
 			return;
 		}
 
@@ -110,7 +110,7 @@ final class PluginBoot {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 */
-		\do_action( "{$this->hook_prefix}_initialized" );
+		\do_action( "{$this->prefix}_initialized" );
 	}
 
 	/**
@@ -162,7 +162,7 @@ final class PluginBoot {
 	 * @param   \Throwable $exception The failure to log.
 	 */
 	protected function log_failure( \Throwable $exception ): void {
-		$key = "{$this->hook_prefix}_boot_failure_" . \md5( $exception->getMessage() );
+		$key = "{$this->prefix}_boot_failure_" . \md5( $exception->getMessage() );
 		if ( false !== \get_transient( $key ) ) {
 			return;
 		}
