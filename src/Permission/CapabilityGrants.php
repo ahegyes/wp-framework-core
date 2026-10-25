@@ -80,7 +80,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	public function run(): void {
 		$roles       = \wp_roles();
-		$fingerprint = $this->get_fingerprint( $roles );
+		$fingerprint = \md5( (string) \wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
 		$row         = $this->get_row();
 		if ( $row['fingerprint'] === $fingerprint ) {
 			return;
@@ -208,20 +208,6 @@ final class CapabilityGrants implements ComponentInterface {
 	// endregion
 
 	// region HELPERS
-
-	/**
-	 * Returns a hash of the declared grants and of the declared roles that exist, which changes whenever a run could grant something new.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   \WP_Roles $roles The site's roles.
-	 *
-	 * @return  string
-	 */
-	protected function get_fingerprint( \WP_Roles $roles ): string {
-		return \md5( (string) \wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
-	}
 
 	/**
 	 * Returns the stored row, which reads as empty when it is missing or is not a valid version 1 row.
