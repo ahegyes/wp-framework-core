@@ -9,7 +9,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 /**
  * The identity of a scheduled invocation, either one-off or recurring but never both: a hook name and the positional arguments its callbacks receive.
  *
- * Arguments are limited to integers, strings, booleans and null, which both Action Scheduler and WP-Cron store and pass back unchanged.
+ * Arguments are limited to integers, strings, booleans and null, which both Action Scheduler and WP-Cron store and pass back unchanged, except a string holding invalid UTF-8, which Action Scheduler stores with those bytes replaced and WP-Cron refuses.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -41,13 +41,8 @@ final readonly class ScheduledHook {
 			throw new InvalidArgumentException( "The arguments of hook '$hook' are not a list of integers, strings, booleans and nulls." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		try {
-			$json = \json_encode( $args, \JSON_THROW_ON_ERROR ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode -- wp_json_encode() replaces invalid UTF-8 instead of failing.
-		} catch ( \JsonException $exception ) {
-			throw new InvalidArgumentException( "The arguments of hook '$hook' do not encode as JSON: {$exception->getMessage()}", 0, $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		if ( \strlen( $json ) > 8000 ) {
+		// Action Scheduler refuses arguments whose wp_json_encode() output exceeds 8,000 bytes.
+		if ( \strlen( (string) \wp_json_encode( $args ) ) > 8000 ) {
 			throw new InvalidArgumentException( "The arguments of hook '$hook' exceed 8,000 bytes of JSON." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}
