@@ -6,7 +6,6 @@ use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
-use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;
@@ -140,9 +139,10 @@ final class CapabilityGrants implements ComponentInterface {
 			}
 		}
 
+		// A grant changes the request's copy of the roles even when the row refuses it, so the check reads the option that the next request loads.
+		$stored  = \get_option( $roles->role_key );
 		$failed  = array();
 		$pending = array();
-		$stored  = $this->get_stored_roles( $roles->role_key );
 		foreach ( $granted as $role => $caps ) {
 			foreach ( $caps as $cap ) {
 				if ( true === ( self::get_capabilities( $stored, $role )[ $cap ] ?? null ) ) {
@@ -265,26 +265,6 @@ final class CapabilityGrants implements ComponentInterface {
 			),
 			true
 		);
-	}
-
-	/**
-	 * Returns the value of the stored roles row, read past the options cache, or null when the row cannot be read.
-	 *
-	 * A grant changes the request's copy of the roles even when the row keeps its value, so only the row shows what persisted.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   string $role_key The name of the site's roles option.
-	 *
-	 * @return  mixed
-	 */
-	protected function get_stored_roles( string $role_key ): mixed {
-		try {
-			return OptionRows::get( $role_key )?->value;
-		} catch ( RuntimeException ) {
-			return null;
-		}
 	}
 
 	/**
