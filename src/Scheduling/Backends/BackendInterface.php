@@ -8,7 +8,7 @@ use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * One scheduler that the framework's Scheduler writes to, reads from and clears, implemented only by the framework and replaced only in tests.
+ * One scheduler that the framework's Scheduler writes to, reads from and clears, implemented only by the framework.
  *
  * @since   2.0.0
  * @version 2.0.0

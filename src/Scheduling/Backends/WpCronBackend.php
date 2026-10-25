@@ -2,7 +2,6 @@
 
 namespace DeepWebSolutions\Framework\Core\Scheduling\Backends;
 
-use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Scheduling\Recurrence;
 use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
 
@@ -18,7 +17,7 @@ use DeepWebSolutions\Framework\Core\Scheduling\ScheduledHook;
  *
  * @phpstan-import-type Census from BackendInterface
  */
-final class WpCronBackend implements BackendInterface, ComponentInterface {
+final class WpCronBackend implements BackendInterface {
 	// region FIELDS AND CONSTANTS
 
 	/**
@@ -50,17 +49,6 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	// endregion
 
 	// region INHERITED METHODS
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 */
-	#[\Override]
-	public function register_hooks(): void {
-		\add_filter( 'cron_schedules', array( $this, 'add_schedules' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Recurrence sets the intervals, with a minimum of 60 seconds.
-	}
 
 	/**
 	 * {@inheritDoc}
@@ -138,7 +126,7 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 		$schedule = "{$this->group}_every_{$recurrence->interval}s";
 
 		// WP-Cron rejects a schedule name that the cron_schedules filter does not return yet, so the interval is added before the write, whether or not this request registered the filter.
-		$this->register_hooks();
+		$this->register_schedules();
 		$this->intervals[ $schedule ] = $recurrence->interval;
 
 		return self::to_result( \wp_schedule_event( \time(), $schedule, $hook->hook, $hook->args, true ) );
@@ -164,6 +152,20 @@ final class WpCronBackend implements BackendInterface, ComponentInterface {
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
 		return self::to_result( \wp_unschedule_hook( $hook, true ) );
+	}
+
+	// endregion
+
+	// region METHODS
+
+	/**
+	 * Adds this backend's schedules to WP-Cron's through the cron_schedules filter.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	public function register_schedules(): void {
+		\add_filter( 'cron_schedules', array( $this, 'add_schedules' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Recurrence sets the intervals, with a minimum of 60 seconds.
 	}
 
 	// endregion
