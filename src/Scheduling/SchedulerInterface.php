@@ -24,9 +24,7 @@ interface SchedulerInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   ScheduledHook $hook     The hook to run.
-	 * @param   int           $priority Optional. The priority from 0 to 255, lower first, which only Action Scheduler applies. Default is 10.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the priority is outside 0 to 255.
+	 * @param   int           $priority Optional. The priority, lower first, which only Action Scheduler applies, clamping it to 0 to 255. Default is 10.
 	 *
 	 * @return  true|\WP_Error
 	 */
@@ -42,9 +40,9 @@ interface SchedulerInterface {
 	 *
 	 * @param   ScheduledHook $hook      The hook to run.
 	 * @param   int           $timestamp The Unix time to run at, where a past time runs at the next dispatch.
-	 * @param   int           $priority  Optional. The priority from 0 to 255, lower first, which only Action Scheduler applies. Default is 10.
+	 * @param   int           $priority  Optional. The priority, lower first, which only Action Scheduler applies, clamping it to 0 to 255. Default is 10.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the timestamp is below 1 or the priority is outside 0 to 255.
+	 * @throws  InvalidArgumentException Thrown when the timestamp is below 1.
 	 *
 	 * @return  true|\WP_Error
 	 */
@@ -60,9 +58,7 @@ interface SchedulerInterface {
 	 *
 	 * @param   ScheduledHook $hook       The hook to run.
 	 * @param   Recurrence    $recurrence The interval of the chain.
-	 * @param   int           $priority   Optional. The priority from 0 to 255, lower first, which only Action Scheduler applies. Default is 10.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the priority is outside 0 to 255.
+	 * @param   int           $priority   Optional. The priority, lower first, which only Action Scheduler applies, clamping it to 0 to 255. Default is 10.
 	 *
 	 * @return  true|\WP_Error
 	 */

@@ -87,7 +87,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function enqueue( ScheduledHook $hook, int $priority = 10 ): true|\WP_Error {
-		self::check_priority( $priority );
 		$ready = $this->check_ready( __METHOD__ );
 		if ( true !== $ready ) {
 			return $ready;
@@ -116,7 +115,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function schedule_single( ScheduledHook $hook, int $timestamp, int $priority = 10 ): true|\WP_Error {
-		self::check_priority( $priority );
 		if ( $timestamp < 1 ) {
 			throw new InvalidArgumentException( "Timestamp '$timestamp' is not a positive Unix time." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
@@ -146,7 +144,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function ensure_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority = 10 ): true|\WP_Error {
-		self::check_priority( $priority );
 		$ready = $this->check_ready( __METHOD__ );
 		if ( true !== $ready ) {
 			return $ready;
@@ -370,24 +367,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	protected function get_readable_backends(): array {
 		return \array_values( \array_filter( $this->backends, static fn ( BackendInterface $backend ): bool => \in_array( $backend->get_state(), array( BackendState::Supported, BackendState::Unsupported ), true ) ) );
-	}
-
-	/**
-	 * Throws when a priority falls outside the range that Action Scheduler stores.
-	 *
-	 * Action Scheduler would clamp it silently.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   int $priority The priority to check.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the priority is outside 0 to 255.
-	 */
-	protected static function check_priority( int $priority ): void {
-		if ( $priority < 0 || $priority > 255 ) {
-			throw new InvalidArgumentException( "Priority '$priority' is outside 0 to 255." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
 	}
 
 	// endregion

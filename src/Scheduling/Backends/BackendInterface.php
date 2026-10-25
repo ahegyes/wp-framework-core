@@ -47,7 +47,7 @@ interface BackendInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   ScheduledHook $hook     The hook to run.
-	 * @param   int           $priority The priority from 0 to 255, lower first.
+	 * @param   int           $priority The priority, lower first.
 	 * @param   bool          $unique   Whether a pending or running invocation of the hook stops the insert.
 	 *
 	 * @return  true|\WP_Error
@@ -62,7 +62,7 @@ interface BackendInterface {
 	 *
 	 * @param   ScheduledHook $hook      The hook to run.
 	 * @param   int           $timestamp The Unix time to run at.
-	 * @param   int           $priority  The priority from 0 to 255, lower first.
+	 * @param   int           $priority  The priority, lower first.
 	 *
 	 * @return  true|\WP_Error
 	 */
@@ -76,7 +76,7 @@ interface BackendInterface {
 	 *
 	 * @param   ScheduledHook $hook       The hook to run.
 	 * @param   Recurrence    $recurrence The interval of the chain.
-	 * @param   int           $priority   The priority from 0 to 255, lower first.
+	 * @param   int           $priority   The priority, lower first.
 	 *
 	 * @return  true|\WP_Error
 	 */
