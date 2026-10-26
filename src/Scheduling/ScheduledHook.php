@@ -33,13 +33,13 @@ final readonly class ScheduledHook extends AbstractValueObject {
 		public string $hook,
 		public array $args = array()
 	) {
+		if ( ! \array_is_list( $args ) || ! \array_all( $args, static fn ( mixed $arg ): bool => \is_int( $arg ) || \is_string( $arg ) || \is_bool( $arg ) || \is_null( $arg ) ) ) {
+			throw new InvalidArgumentException( "The arguments of hook '$hook' are not a list of integers, strings, booleans and nulls." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
 		// Action Scheduler reads a hook name of '0' as no hook, so its queries and cancellations would match every hook.
 		if ( '' === $hook || '0' === $hook || \strlen( $hook ) > 191 || 1 === \preg_match( '/\s/', $hook ) ) {
 			throw new InvalidArgumentException( "Hook '$hook' is not 1 to 191 bytes without whitespace, other than '0'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		if ( ! \array_is_list( $args ) || ! \array_all( $args, static fn ( mixed $arg ): bool => \is_int( $arg ) || \is_string( $arg ) || \is_bool( $arg ) || \is_null( $arg ) ) ) {
-			throw new InvalidArgumentException( "The arguments of hook '$hook' are not a list of integers, strings, booleans and nulls." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		// Action Scheduler refuses arguments whose wp_json_encode() output exceeds 8,000 bytes.

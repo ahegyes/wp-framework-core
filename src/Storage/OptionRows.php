@@ -204,12 +204,12 @@ final class OptionRows {
 	 * @return  string
 	 */
 	protected static function serialize( string $name, mixed $value ): string {
-		self::check_name( $name );
-
 		// A stored object's class name changes with each plugin's scoping prefix, so it would not read back.
 		if ( ! self::is_storable( $value ) ) {
 			throw new InvalidArgumentException( "The value of option '$name' holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
+
+		self::check_name( $name );
 
 		$raw = maybe_serialize( $value );
 		return \is_scalar( $raw ) ? (string) $raw : '';
