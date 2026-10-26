@@ -82,7 +82,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   string             $prefix The plugin's prefix, matching PREFIX_PATTERN without a reserved segment.
-	 * @param   PsrLoggerInterface $logger The logger that records store failures.
+	 * @param   PsrLoggerInterface $logger The logger that records storage failures.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
 	 */
@@ -121,7 +121,7 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Saves a notice in its scope for the current site, network or user, replacing any notice of the same id there.
 	 *
-	 * A store that throws is logged, and the notice is lost.
+	 * A throw from storage is logged, and the notice is lost.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -185,7 +185,7 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Returns the notices the current user sees here, in scope order.
 	 *
-	 * A scope whose store throws is logged and left out.
+	 * A scope whose storage throws is logged and left out.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -250,7 +250,7 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Records that the current user was shown a one-shot notice, deleting it unless other viewers still need to see it.
 	 *
-	 * A store that throws is logged, so the notice may show again.
+	 * A throw from storage is logged, so the notice may show again.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -653,13 +653,13 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Logs a store failure as an error.
+	 * Logs a storage failure as an error.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @param   string      $message   The message, with {scope} and {message} placeholders.
-	 * @param   NoticeScope $scope     The scope whose store failed.
+	 * @param   NoticeScope $scope     The scope whose storage failed.
 	 * @param   \Throwable  $exception The failure.
 	 */
 	protected function log( string $message, NoticeScope $scope, \Throwable $exception ): void {
