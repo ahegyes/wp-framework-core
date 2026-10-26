@@ -129,7 +129,7 @@ final readonly class Lock {
 
 		// Within the second of its last write the row already holds this hold, and the database reports no change for an unchanged value.
 		$hold = $this->make_hold( $owner, $this->clock->now()->getTimestamp() );
-		return \maybe_serialize( $hold ) === $row->raw || ! \is_null( OptionRows::replace( $row, $hold ) );
+		return maybe_serialize( $hold ) === $row->raw || ! \is_null( OptionRows::replace( $row, $hold ) );
 	}
 
 	/**

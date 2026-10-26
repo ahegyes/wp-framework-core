@@ -209,7 +209,7 @@ final class OptionRows {
 			throw new InvalidArgumentException( "The value of option '$name' holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$raw = \maybe_serialize( $value );
+		$raw = maybe_serialize( $value );
 		return \is_scalar( $raw ) ? (string) $raw : '';
 	}
 
@@ -239,7 +239,7 @@ final class OptionRows {
 	 * @return  OptionRow
 	 */
 	protected static function make_row( string $name, string $raw ): OptionRow {
-		return new OptionRow( $name, \maybe_unserialize( $raw ), $raw );
+		return new OptionRow( $name, maybe_unserialize( $raw ), $raw );
 	}
 
 	/**
@@ -277,12 +277,12 @@ final class OptionRows {
 	 * @param   string $name The option name.
 	 */
 	protected static function forget( string $name ): void {
-		\wp_cache_delete( $name, 'options' );
+		wp_cache_delete( $name, 'options' );
 		foreach ( array( 'notoptions', 'alloptions' ) as $list ) {
 			// Writing a cached list back could restore another request's stale entries, so a list that names the option is dropped.
-			$names = \wp_cache_get( $list, 'options' );
+			$names = wp_cache_get( $list, 'options' );
 			if ( \is_array( $names ) && \array_key_exists( $name, $names ) ) {
-				\wp_cache_delete( $list, 'options' );
+				wp_cache_delete( $list, 'options' );
 			}
 		}
 	}

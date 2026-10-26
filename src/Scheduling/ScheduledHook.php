@@ -43,7 +43,7 @@ final readonly class ScheduledHook extends AbstractValueObject {
 		}
 
 		// Action Scheduler refuses arguments whose wp_json_encode() output exceeds 8,000 bytes.
-		if ( \strlen( (string) \wp_json_encode( $args ) ) > 8000 ) {
+		if ( \strlen( (string) wp_json_encode( $args ) ) > 8000 ) {
 			throw new InvalidArgumentException( "The arguments of hook '$hook' exceed 8,000 bytes of JSON." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}

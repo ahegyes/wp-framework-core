@@ -58,7 +58,7 @@ final class GuardedLogger extends AbstractLogger {
 			$this->logger->log( $level, $message, $context );
 		} catch ( \Throwable $failure ) {
 			// The raw message with its context as JSON keeps the values that no placeholder names.
-			$encoded = \wp_json_encode( \array_diff_key( $context, array( 'exception' => true ) ) );
+			$encoded = wp_json_encode( \array_diff_key( $context, array( 'exception' => true ) ) );
 			\error_log( self::format_record( $this->channel, $level, "$message $encoded", $context ) . "\nThe logger failed: $failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The wrapped logger failed.
 		}
 	}

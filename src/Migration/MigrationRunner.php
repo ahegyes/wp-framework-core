@@ -113,7 +113,7 @@ final class MigrationRunner implements ComponentInterface {
 	) {
 		$this->clock  = $clock ?? new SystemClock();
 		$this->lock   = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
-		$this->owner  = \wp_generate_uuid4();
+		$this->owner  = wp_generate_uuid4();
 		$this->logger = new GuardedLogger( $logger, $option );
 	}
 
@@ -132,7 +132,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  int<0, max>
 	 */
 	public static function get_revision( string $option ): int {
-		return \max( 0, \filter_var( \get_option( $option, 0 ), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 );
+		return \max( 0, \filter_var( get_option( $option, 0 ), \FILTER_VALIDATE_INT, \FILTER_NULL_ON_FAILURE ) ?? 0 );
 	}
 
 	// endregion
@@ -147,10 +147,10 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	#[\Override]
 	public function register_hooks(): void {
-		\add_action( 'wp_loaded', array( $this, 'run' ) );
-		\add_action( $this->get_hook(), array( $this, 'run' ) );
-		\add_action( 'all_admin_notices', array( $this, 'render_notice' ) );
-		\add_action( "admin_post_{$this->get_hook()}_now", array( $this, 'run_now' ) );
+		add_action( 'wp_loaded', array( $this, 'run' ) );
+		add_action( $this->get_hook(), array( $this, 'run' ) );
+		add_action( 'all_admin_notices', array( $this, 'render_notice' ) );
+		add_action( "admin_post_{$this->get_hook()}_now", array( $this, 'run_now' ) );
 	}
 
 	// endregion
@@ -219,7 +219,7 @@ final class MigrationRunner implements ComponentInterface {
 			}
 
 			if ( \is_null( $row ) ) {
-				\add_option(
+				add_option(
 					"{$this->option}_first_run",
 					array(
 						'v'  => 1,
@@ -237,15 +237,15 @@ final class MigrationRunner implements ComponentInterface {
 				}
 
 				$step         = $this->steps[ $revision ];
-				$memory_limit = \wp_convert_hr_to_bytes( (string) \ini_get( 'memory_limit' ) );
+				$memory_limit = wp_convert_hr_to_bytes( (string) \ini_get( 'memory_limit' ) );
 				$spent        = ! \is_null( $this->deadline ) && ( $this->get_time() >= $this->deadline || ( 0 < $memory_limit && \memory_get_usage( true ) > 0.9 * $memory_limit ) );
-				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! \doing_action( $this->get_hook() ) ) ) {
+				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! doing_action( $this->get_hook() ) ) ) {
 					// The lock goes first, so that the continuation can take it.
 					$this->unlock();
 
 					// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due now.
 					$hook      = new ScheduledHook( $this->get_hook() );
-					$scheduled = \doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
+					$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
 					if ( true !== $scheduled ) {
 						$this->logger->warning(
 							'Could not schedule the next data migration run: {error}',
@@ -263,7 +263,7 @@ final class MigrationRunner implements ComponentInterface {
 				$finished = true;
 				if ( $step instanceof BatchedMigrationStepInterface ) {
 					$finished = ! $step->process_batch();
-					\wp_cache_flush_runtime();
+					wp_cache_flush_runtime();
 				} else {
 					$step();
 				}
@@ -279,8 +279,8 @@ final class MigrationRunner implements ComponentInterface {
 				}
 
 				// The step or batch succeeded, so a recorded failure is no longer current.
-				if ( false !== \get_option( "{$this->option}_error" ) ) {
-					\delete_option( "{$this->option}_error" );
+				if ( false !== get_option( "{$this->option}_error" ) ) {
+					delete_option( "{$this->option}_error" );
 				}
 			}
 		} catch ( \Throwable $exception ) {
@@ -324,15 +324,15 @@ final class MigrationRunner implements ComponentInterface {
 			return;
 		}
 
-		$name  = \get_plugin_data( $this->plugin_file, false )['Name'];
+		$name  = get_plugin_data( $this->plugin_file, false )['Name'];
 		$error = $this->get_error();
 		if ( ! \is_null( $error ) ) {
 			Requirements::print_admin_notice(
 				\sprintf(
 					/* translators: 1: The plugin's name. 2: The error message. */
-					\esc_html__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s', 'wp-framework' ),
-					\esc_html( $name ),
-					\esc_html( $error['message'] )
+					esc_html__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s', 'wp-framework' ),
+					esc_html( $name ),
+					esc_html( $error['message'] )
 				)
 			);
 			return;
@@ -342,9 +342,9 @@ final class MigrationRunner implements ComponentInterface {
 			Requirements::print_admin_notice(
 				\sprintf(
 					/* translators: 1: The plugin's name. 2: The URL that runs the update now. */
-					\__( '%1$s is updating its data in the background. <a href="%2$s">Run the update now</a>.', 'wp-framework' ),
-					\esc_html( $name ),
-					\esc_url( \wp_nonce_url( \admin_url( "admin-post.php?action={$this->get_hook()}_now" ), "{$this->get_hook()}_now" ) )
+					__( '%1$s is updating its data in the background. <a href="%2$s">Run the update now</a>.', 'wp-framework' ),
+					esc_html( $name ),
+					esc_url( wp_nonce_url( admin_url( "admin-post.php?action={$this->get_hook()}_now" ), "{$this->get_hook()}_now" ) )
 				),
 				array( 'type' => 'info' )
 			);
@@ -360,9 +360,9 @@ final class MigrationRunner implements ComponentInterface {
 	 * @version 2.0.0
 	 */
 	public function run_now(): void {
-		\check_admin_referer( "{$this->get_hook()}_now" );
-		if ( ! \current_user_can( 'activate_plugins' ) ) {
-			\wp_die( '', '', 403 );
+		check_admin_referer( "{$this->get_hook()}_now" );
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			wp_die( '', '', 403 );
 		}
 
 		/**
@@ -371,9 +371,9 @@ final class MigrationRunner implements ComponentInterface {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 */
-		\do_action( $this->get_hook() );
+		do_action( $this->get_hook() );
 
-		\wp_safe_redirect( \wp_get_referer() ?: \admin_url() );
+		wp_safe_redirect( wp_get_referer() ?: admin_url() );
 		exit;
 	}
 
@@ -443,12 +443,12 @@ final class MigrationRunner implements ComponentInterface {
 	 * @throws  RuntimeException Thrown when the revision is not written.
 	 */
 	protected function checkpoint( int $revision ): void {
-		if ( ! \update_option( $this->option, $revision, true ) ) {
+		if ( ! update_option( $this->option, $revision, true ) ) {
 			throw new RuntimeException( "Could not record schema revision '$revision'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		if ( $revision > self::get_revision( "{$this->option}_high_water" ) ) {
-			\update_option( "{$this->option}_high_water", $revision, false );
+			update_option( "{$this->option}_high_water", $revision, false );
 		}
 	}
 
@@ -463,7 +463,7 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function record_error( string $message, ?int $revision ): void {
 		$now = $this->clock->now()->getTimestamp();
-		\update_option(
+		update_option(
 			"{$this->option}_error",
 			array(
 				'v'        => 1,
@@ -485,7 +485,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  ErrorRow|null
 	 */
 	protected function get_error(): ?array {
-		$row = \get_option( "{$this->option}_error", null );
+		$row = get_option( "{$this->option}_error", null );
 		if ( ! \is_array( $row ) || 1 !== ( $row['v'] ?? null ) || ! \array_key_exists( 'revision', $row ) ) {
 			return null;
 		}

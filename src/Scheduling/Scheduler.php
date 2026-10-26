@@ -250,16 +250,16 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	protected function check_ready( string $method ): true|\WP_Error {
 		$error = match ( true ) {
-			0 === \did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() )
+			0 === did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() )
 				=> new \WP_Error( 'scheduler_not_ready', 'Scheduling waits until init has fired and Action Scheduler has initialized.' ),
 			// Readiness is measured for the site that loaded the plugins, while a switched site may run other plugins or lack Action Scheduler's tables.
-			\is_multisite() && \ms_is_switched()
+			is_multisite() && ms_is_switched()
 				=> new \WP_Error( 'scheduler_switched', 'Scheduling is not supported while switched to another site.' ),
 			default => true,
 		};
 
 		if ( true !== $error ) {
-			\_doing_it_wrong( \esc_html( $method ), \esc_html( $error->get_error_message() ), '2.0.0' );
+			_doing_it_wrong( esc_html( $method ), esc_html( $error->get_error_message() ), '2.0.0' );
 		}
 
 		return $error;

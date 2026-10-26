@@ -28,7 +28,7 @@ final class TransientCache implements PsrCacheInterface {
 	 *
 	 * @var     int
 	 */
-	protected const int DEFAULT_TTL = \DAY_IN_SECONDS;
+	protected const int DEFAULT_TTL = DAY_IN_SECONDS;
 
 	/**
 	 * The length of the longest prefix, which leaves room for a key's hash within the 172 characters of a transient name.
@@ -113,7 +113,7 @@ final class TransientCache implements PsrCacheInterface {
 		$entry = CacheEntries::wrap( $value, $generation );
 
 		// set_transient() also returns false when the store already holds the entry.
-		return \set_transient( $name, $entry, $lifetime ) || \maybe_serialize( \get_transient( $name ) ) === \maybe_serialize( $entry );
+		return set_transient( $name, $entry, $lifetime ) || maybe_serialize( get_transient( $name ) ) === maybe_serialize( $entry );
 	}
 
 	/**
@@ -127,7 +127,7 @@ final class TransientCache implements PsrCacheInterface {
 		$name = $this->get_name( $key );
 
 		// delete_transient() also returns false when the store holds no entry.
-		return \delete_transient( $name ) || false === \get_transient( $name );
+		return delete_transient( $name ) || false === get_transient( $name );
 	}
 
 	/**
@@ -159,13 +159,13 @@ final class TransientCache implements PsrCacheInterface {
 		$keys = CacheEntries::get_keys( $keys );
 
 		// On the options table, get_transient() reads each entry's rows in a query of its own.
-		if ( ! \wp_using_ext_object_cache() && ! \wp_installing() ) {
+		if ( ! wp_using_ext_object_cache() && ! wp_installing() ) {
 			$options = array();
 			foreach ( $keys as $key ) {
 				$name = $this->get_name( $key );
 				\array_push( $options, "_transient_$name", "_transient_timeout_$name" );
 			}
-			\wp_prime_option_caches( $options );
+			wp_prime_option_caches( $options );
 		}
 
 		$values = array();
@@ -260,7 +260,7 @@ final class TransientCache implements PsrCacheInterface {
 			return null;
 		}
 
-		return CacheEntries::unwrap( \get_transient( $name ), $generation );
+		return CacheEntries::unwrap( get_transient( $name ), $generation );
 	}
 
 	/**
@@ -272,7 +272,7 @@ final class TransientCache implements PsrCacheInterface {
 	 * @return  string|null
 	 */
 	protected function get_generation(): ?string {
-		$generation = \get_option( $this->generation_option );
+		$generation = get_option( $this->generation_option );
 		return \is_string( $generation ) && '' !== $generation ? $generation : null;
 	}
 
@@ -288,7 +288,7 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	protected function start_generation(): ?string {
 		$generation = \bin2hex( \random_bytes( 8 ) );
-		return \update_option( $this->generation_option, $generation, true ) ? $generation : null; // Autoloaded, because every read of the cache needs the generation.
+		return update_option( $this->generation_option, $generation, true ) ? $generation : null; // Autoloaded, because every read of the cache needs the generation.
 	}
 
 	/**

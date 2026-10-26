@@ -124,7 +124,7 @@ final class CacheEntries {
 	 */
 	public static function wrap( mixed $value, string $generation ): array {
 		return array(
-			'value'      => \maybe_serialize( $value ),
+			'value'      => maybe_serialize( $value ),
 			'generation' => $generation,
 		);
 	}
@@ -147,7 +147,7 @@ final class CacheEntries {
 		}
 
 		$value = $entry['value'];
-		return array( \is_string( $value ) ? \maybe_unserialize( $value ) : $value );
+		return array( \is_string( $value ) ? maybe_unserialize( $value ) : $value );
 	}
 
 	// endregion

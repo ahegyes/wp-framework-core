@@ -62,7 +62,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 			return BackendState::Absent;
 		}
 
-		if ( 0 === \did_action( 'action_scheduler_init' ) ) {
+		if ( 0 === did_action( 'action_scheduler_init' ) ) {
 			return BackendState::Initializing;
 		}
 
@@ -78,8 +78,8 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function census( ScheduledHook $hook ): array {
-		$pending = \as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_PENDING ), OBJECT );
-		$running = \as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_RUNNING ), OBJECT );
+		$pending = as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_PENDING ), OBJECT );
+		$running = as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_RUNNING ), OBJECT );
 
 		return array(
 			'pending'           => \count( $pending ),
@@ -97,7 +97,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function enqueue( ScheduledHook $hook, int $priority, bool $unique ): true|\WP_Error {
-		return $this->confirm( \as_enqueue_async_action( $hook->hook, $hook->args, $this->group, $unique, $priority ), $hook, $unique );
+		return $this->confirm( as_enqueue_async_action( $hook->hook, $hook->args, $this->group, $unique, $priority ), $hook, $unique );
 	}
 
 	/**
@@ -108,7 +108,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function schedule_single( ScheduledHook $hook, int $timestamp, int $priority ): true|\WP_Error {
-		return $this->confirm( \as_schedule_single_action( $timestamp, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
+		return $this->confirm( as_schedule_single_action( $timestamp, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
 	}
 
 	/**
@@ -119,7 +119,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function schedule_recurring( ScheduledHook $hook, Recurrence $recurrence, int $priority ): true|\WP_Error {
-		return $this->confirm( \as_schedule_recurring_action( \time(), $recurrence->interval, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
+		return $this->confirm( as_schedule_recurring_action( \time(), $recurrence->interval, $hook->hook, $hook->args, $this->group, false, $priority ), $hook, false );
 	}
 
 	/**
@@ -130,7 +130,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
-		\as_unschedule_all_actions( $hook->hook, $hook->args, $this->group );
+		as_unschedule_all_actions( $hook->hook, $hook->args, $this->group );
 		return true;
 	}
 
@@ -143,7 +143,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
 		// Best effort, since Action Scheduler reports no failure: at worst the hook's pending actions stay and run, or fail without a callback, until a later call succeeds.
-		\as_unschedule_all_actions( $hook );
+		as_unschedule_all_actions( $hook );
 		return true;
 	}
 
@@ -210,7 +210,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 * @return  true|\WP_Error
 	 */
 	protected function confirm( int $action_id, ScheduledHook $hook, bool $unique ): true|\WP_Error {
-		if ( 0 < $action_id || ( $unique && \as_has_scheduled_action( $hook->hook, $hook->args, $this->group ) ) ) {
+		if ( 0 < $action_id || ( $unique && as_has_scheduled_action( $hook->hook, $hook->args, $this->group ) ) ) {
 			return true;
 		}
 

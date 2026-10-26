@@ -101,7 +101,7 @@ final class WpCronBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function enqueue( ScheduledHook $hook, int $priority, bool $unique ): true|\WP_Error {
-		return self::to_result( \wp_schedule_single_event( \time(), $hook->hook, $hook->args, true ) );
+		return self::to_result( wp_schedule_single_event( \time(), $hook->hook, $hook->args, true ) );
 	}
 
 	/**
@@ -112,7 +112,7 @@ final class WpCronBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function schedule_single( ScheduledHook $hook, int $timestamp, int $priority ): true|\WP_Error {
-		return self::to_result( \wp_schedule_single_event( $timestamp, $hook->hook, $hook->args, true ) );
+		return self::to_result( wp_schedule_single_event( $timestamp, $hook->hook, $hook->args, true ) );
 	}
 
 	/**
@@ -129,7 +129,7 @@ final class WpCronBackend implements BackendInterface {
 		$this->register_schedules();
 		$this->intervals[ $schedule ] = $recurrence->interval;
 
-		return self::to_result( \wp_schedule_event( \time(), $schedule, $hook->hook, $hook->args, true ) );
+		return self::to_result( wp_schedule_event( \time(), $schedule, $hook->hook, $hook->args, true ) );
 	}
 
 	/**
@@ -140,7 +140,7 @@ final class WpCronBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function clear_scheduled_hook( ScheduledHook $hook ): true|\WP_Error {
-		return self::to_result( \wp_clear_scheduled_hook( $hook->hook, $hook->args, true ) );
+		return self::to_result( wp_clear_scheduled_hook( $hook->hook, $hook->args, true ) );
 	}
 
 	/**
@@ -151,7 +151,7 @@ final class WpCronBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
-		return self::to_result( \wp_unschedule_hook( $hook, true ) );
+		return self::to_result( wp_unschedule_hook( $hook, true ) );
 	}
 
 	// endregion
@@ -165,7 +165,7 @@ final class WpCronBackend implements BackendInterface {
 	 * @version 2.0.0
 	 */
 	public function register_schedules(): void {
-		\add_filter( 'cron_schedules', array( $this, 'add_schedules' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Recurrence sets the intervals, with a minimum of 60 seconds.
+		add_filter( 'cron_schedules', array( $this, 'add_schedules' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Recurrence sets the intervals, with a minimum of 60 seconds.
 	}
 
 	// endregion
@@ -223,7 +223,7 @@ final class WpCronBackend implements BackendInterface {
 	 * @return  array<mixed>
 	 */
 	protected function get_cron(): array {
-		$cron = \get_option( 'cron', array() );
+		$cron = get_option( 'cron', array() );
 
 		return \is_array( $cron ) ? $cron : array();
 	}
@@ -239,7 +239,7 @@ final class WpCronBackend implements BackendInterface {
 	 * @return  true|\WP_Error
 	 */
 	protected static function to_result( mixed $result ): true|\WP_Error {
-		return \is_wp_error( $result ) && 'duplicate_event' !== $result->get_error_code() ? $result : true;
+		return is_wp_error( $result ) && 'duplicate_event' !== $result->get_error_code() ? $result : true;
 	}
 
 	// endregion

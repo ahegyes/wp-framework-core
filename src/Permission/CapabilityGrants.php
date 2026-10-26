@@ -62,8 +62,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	#[\Override]
 	public function register_hooks(): void {
-		\add_action( 'wp_loaded', array( $this, 'run' ) );
-		\add_action( 'updated_option', array( $this, 'forget_deleted_roles' ), 10, 3 );
+		add_action( 'wp_loaded', array( $this, 'run' ) );
+		add_action( 'updated_option', array( $this, 'forget_deleted_roles' ), 10, 3 );
 	}
 
 	// endregion
@@ -79,8 +79,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @version 2.0.0
 	 */
 	public function run(): void {
-		$roles       = \wp_roles();
-		$fingerprint = \md5( (string) \wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
+		$roles       = wp_roles();
+		$fingerprint = \md5( (string) wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
 		$row         = $this->get_row();
 		if ( $row['fingerprint'] === $fingerprint ) {
 			return;
@@ -146,7 +146,7 @@ final class CapabilityGrants implements ComponentInterface {
 		}
 
 		// A grant changes the request's copy of the roles even when the row refuses it, so the check reads the option that the next request loads.
-		$stored  = \get_option( $roles->role_key );
+		$stored  = get_option( $roles->role_key );
 		$failed  = array();
 		$pending = array();
 		foreach ( $granted as $role => $caps ) {
@@ -224,7 +224,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @return  array{fingerprint: string, grants: Pairs, pending: Pairs}
 	 */
 	protected function get_row(): array {
-		$row = \get_option( $this->ledger_option );
+		$row = get_option( $this->ledger_option );
 		if ( ! \is_array( $row ) || 1 !== ( $row['v'] ?? null ) ) {
 			$row = array();
 		}
@@ -247,7 +247,7 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @param   Pairs  $pending     The grants about to be made.
 	 */
 	protected function write_row( string $fingerprint, array $grants, array $pending ): void {
-		\update_option(
+		update_option(
 			$this->ledger_option,
 			array(
 				'v'           => 1,

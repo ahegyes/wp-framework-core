@@ -109,10 +109,10 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	#[\Override]
 	public function register_hooks(): void {
-		\add_action( 'all_admin_notices', array( $this, 'render_notices' ) );
-		\add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_script' ) );
-		\add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
-		\add_action( 'admin_footer', array( $this, 'enqueue_dismiss_script' ) );
+		add_action( 'all_admin_notices', array( $this, 'render_notices' ) );
+		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_script' ) );
+		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+		add_action( 'admin_footer', array( $this, 'enqueue_dismiss_script' ) );
 	}
 
 	// endregion
@@ -134,8 +134,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
 	 */
 	public function add( Notice $notice, int $user_id = 0 ): void {
-		if ( NoticeScope::Request === $notice->scope && 0 < \did_action( 'all_admin_notices' ) ) {
-			\_doing_it_wrong( __METHOD__, \esc_html( "Request notice '$notice->id' was added after the admin notices showed, so it does not show." ), '2.0.0' );
+		if ( NoticeScope::Request === $notice->scope && 0 < did_action( 'all_admin_notices' ) ) {
+			_doing_it_wrong( __METHOD__, esc_html( "Request notice '$notice->id' was added after the admin notices showed, so it does not show." ), '2.0.0' );
 		}
 
 		$owner = $this->get_owner( $notice->scope, $user_id );
@@ -196,7 +196,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  list<Notice>
 	 */
 	protected function select( bool $block_editor ): array {
-		$user_id = \get_current_user_id();
+		$user_id = get_current_user_id();
 		if ( 0 === $user_id ) {
 			return array();
 		}
@@ -205,9 +205,9 @@ final class AdminNotices implements ComponentInterface {
 		foreach ( self::ORDER as $scope ) {
 			$shows_here = match ( true ) {
 				$block_editor       => NoticeScope::Request !== $scope,
-				\is_network_admin() => NoticeScope::Site !== $scope,
-				\is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
-				default             => \is_blog_admin(),
+				is_network_admin() => NoticeScope::Site !== $scope,
+				is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
+				default             => is_blog_admin(),
 			};
 			if ( ! $shows_here ) {
 				continue;
@@ -219,11 +219,11 @@ final class AdminNotices implements ComponentInterface {
 						continue;
 					}
 
-					if ( array() !== $notice->screens && ! \in_array( \get_current_screen()?->id, $notice->screens, true ) ) {
+					if ( array() !== $notice->screens && ! \in_array( get_current_screen()?->id, $notice->screens, true ) ) {
 						continue;
 					}
 
-					if ( null !== $notice->capability && ! \current_user_can( $notice->capability ) ) {
+					if ( null !== $notice->capability && ! current_user_can( $notice->capability ) ) {
 						continue;
 					}
 
@@ -242,7 +242,7 @@ final class AdminNotices implements ComponentInterface {
 					 * @param   string $id      The notice's id.
 					 * @param   string $scope   The notice's scope.
 					 */
-					if ( true === \apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $scope->value ) ) {
+					if ( true === apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $scope->value ) ) {
 						$selected[] = $notice;
 					}
 				}
@@ -273,7 +273,7 @@ final class AdminNotices implements ComponentInterface {
 			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope || $notice->is_shared() ) {
 				$this->delete( $notice->scope, $this->get_owner( $notice->scope, 0 ), $notice->id );
 			} else {
-				$this->hide( $notice->scope, $notice->id, \get_current_user_id(), 'delivered' );
+				$this->hide( $notice->scope, $notice->id, get_current_user_id(), 'delivered' );
 			}
 		} catch ( \Throwable $exception ) {
 			$this->log( 'Could not acknowledge a {scope} notice: {message}', $notice->scope, $exception );
@@ -294,7 +294,7 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	public function render_notices(): void {
 		// The screen API loads only in the admin.
-		if ( \function_exists( 'get_current_screen' ) && true === \get_current_screen()?->is_block_editor() ) {
+		if ( \function_exists( 'get_current_screen' ) && true === get_current_screen()?->is_block_editor() ) {
 			return;
 		}
 
@@ -305,11 +305,11 @@ final class AdminNotices implements ComponentInterface {
 				'data-notice-id'    => $notice->id,
 			);
 			if ( $notice->persistent && $notice->dismissible ) {
-				$attributes['data-notice-nonce'] = \wp_create_nonce( $this->get_nonce_action( $notice->scope, $notice->id ) );
+				$attributes['data-notice-nonce'] = wp_create_nonce( $this->get_nonce_action( $notice->scope, $notice->id ) );
 				$this->needs_dismiss_script      = true;
 			}
 
-			\wp_admin_notice(
+			wp_admin_notice(
 				$this->get_message( $notice ),
 				array(
 					'type'        => $notice->type->value,
@@ -329,7 +329,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 */
 	public function register_rest_routes(): void {
-		\register_rest_route(
+		register_rest_route(
 			$this->get_rest_namespace(),
 			'/notices/dismissals',
 			array(
@@ -353,7 +353,7 @@ final class AdminNotices implements ComponentInterface {
 				),
 			)
 		);
-		\register_rest_route(
+		register_rest_route(
 			$this->get_rest_namespace(),
 			'/notices/deliveries',
 			array(
@@ -374,12 +374,12 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	public function enqueue_editor_script(): void {
 		// The other block editors, such as the site editor while it browses, show no notices, so a one-shot delivered there would be lost.
-		$screen = \function_exists( 'get_current_screen' ) ? \get_current_screen() : null;
+		$screen = \function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( true !== $screen?->is_block_editor() || 'post' !== $screen->base ) {
 			return;
 		}
 
-		$settings = \wp_json_encode(
+		$settings = wp_json_encode(
 			array(
 				'prefix'  => $this->prefix,
 				'path'    => "{$this->get_rest_namespace()}/notices/deliveries",
@@ -387,8 +387,8 @@ final class AdminNotices implements ComponentInterface {
 			)
 		);
 
-		\wp_register_script( "{$this->prefix}-notice-delivery", false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
-		\wp_add_inline_script(
+		wp_register_script( "{$this->prefix}-notice-delivery", false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		wp_add_inline_script(
 			"{$this->prefix}-notice-delivery",
 			<<<JS
 			( function ( settings ) {
@@ -417,7 +417,7 @@ final class AdminNotices implements ComponentInterface {
 			} )( $settings );
 			JS
 		);
-		\wp_enqueue_script( "{$this->prefix}-notice-delivery" );
+		wp_enqueue_script( "{$this->prefix}-notice-delivery" );
 	}
 
 	/**
@@ -433,15 +433,15 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		$settings = \wp_json_encode(
+		$settings = wp_json_encode(
 			array(
 				'prefix' => $this->prefix,
 				'path'   => "{$this->get_rest_namespace()}/notices/dismissals",
 			)
 		);
 
-		\wp_register_script( "{$this->prefix}-notice-dismissal", false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
-		\wp_add_inline_script(
+		wp_register_script( "{$this->prefix}-notice-dismissal", false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		wp_add_inline_script(
 			"{$this->prefix}-notice-dismissal",
 			<<<JS
 			( function ( settings ) {
@@ -467,7 +467,7 @@ final class AdminNotices implements ComponentInterface {
 			} )( $settings );
 			JS
 		);
-		\wp_enqueue_script( "{$this->prefix}-notice-dismissal" );
+		wp_enqueue_script( "{$this->prefix}-notice-dismissal" );
 	}
 
 	/**
@@ -485,13 +485,13 @@ final class AdminNotices implements ComponentInterface {
 		$scope   = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
 		$id      = $params['id'] ?? null;
 		$nonce   = $params['nonce'] ?? null;
-		$user_id = \get_current_user_id();
+		$user_id = get_current_user_id();
 
 		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
 			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or nonce is invalid.', array( 'status' => 400 ) );
 		}
 
-		if ( false === \wp_verify_nonce( $nonce, $this->get_nonce_action( $scope, $id ) ) ) {
+		if ( false === wp_verify_nonce( $nonce, $this->get_nonce_action( $scope, $id ) ) ) {
 			return new \WP_Error( 'rest_forbidden', 'The nonce does not match a notice shown to this user.', array( 'status' => 403 ) );
 		}
 
@@ -504,7 +504,7 @@ final class AdminNotices implements ComponentInterface {
 					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id.', array( 'status' => 404 ) );
 				}
 
-				if ( ! $notice->persistent || ! $notice->dismissible || ( null !== $notice->capability && ! \current_user_can( $notice->capability ) ) ) {
+				if ( ! $notice->persistent || ! $notice->dismissible || ( null !== $notice->capability && ! current_user_can( $notice->capability ) ) ) {
 					return new \WP_Error( 'rest_forbidden', 'This user cannot dismiss that notice.', array( 'status' => 403 ) );
 				}
 			}
@@ -528,7 +528,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			\do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $owner );
+			do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -548,7 +548,7 @@ final class AdminNotices implements ComponentInterface {
 			$delivered[] = array(
 				'id'            => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
 				'status'        => $notice->type->value,
-				'content'       => \wp_kses_post( $this->get_message( $notice ) ),
+				'content'       => wp_kses_post( $this->get_message( $notice ) ),
 				'isDismissible' => $notice->dismissible,
 			);
 			$this->acknowledge( $notice );
@@ -583,12 +583,12 @@ final class AdminNotices implements ComponentInterface {
 
 			return match ( $scope ) {
 				NoticeScope::Request => 0,
-				NoticeScope::Site    => \get_current_blog_id(),
-				default              => \get_current_network_id(),
+				NoticeScope::Site    => get_current_blog_id(),
+				default              => get_current_network_id(),
 			};
 		}
 
-		$user_id = $user_id ?: \get_current_user_id();
+		$user_id = $user_id ?: get_current_user_id();
 		if ( $user_id < 1 ) {
 			throw new LogicException( "A user notice needs a user, but it has user $user_id." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
@@ -612,9 +612,9 @@ final class AdminNotices implements ComponentInterface {
 	protected function read( NoticeScope $scope, int $owner ): array {
 		$rows = match ( $scope ) {
 			NoticeScope::Request => $this->request_notices,
-			NoticeScope::User    => \get_user_option( "{$this->prefix}_notices", $owner ),
-			NoticeScope::Site    => \get_option( "{$this->prefix}_notices" ),
-			NoticeScope::Network => \get_network_option( $owner, "{$this->prefix}_network_notices" ),
+			NoticeScope::User    => get_user_option( "{$this->prefix}_notices", $owner ),
+			NoticeScope::Site    => get_option( "{$this->prefix}_notices" ),
+			NoticeScope::Network => get_network_option( $owner, "{$this->prefix}_network_notices" ),
 		};
 
 		$notices = array();
@@ -644,9 +644,9 @@ final class AdminNotices implements ComponentInterface {
 		$rows = \array_map( static fn ( Notice $notice ): array => $notice->to_array(), $notices );
 		match ( $scope ) {
 			NoticeScope::Request => $this->request_notices = $rows,
-			NoticeScope::User    => \update_user_option( $owner, "{$this->prefix}_notices", \wp_slash( $rows ) ),
-			NoticeScope::Site    => \update_option( "{$this->prefix}_notices", $rows, false ),
-			NoticeScope::Network => \update_network_option( $owner, "{$this->prefix}_network_notices", $rows ),
+			NoticeScope::User    => update_user_option( $owner, "{$this->prefix}_notices", wp_slash( $rows ) ),
+			NoticeScope::Site    => update_option( "{$this->prefix}_notices", $rows, false ),
+			NoticeScope::Network => update_network_option( $owner, "{$this->prefix}_network_notices", $rows ),
 		};
 	}
 
@@ -688,7 +688,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  array<string, array{state: string, at: int}>
 	 */
 	protected function get_hidden( NoticeScope $scope, int $user_id ): array {
-		$stored = NoticeScope::Network === $scope ? \get_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", true ) : \get_user_option( "{$this->prefix}_hidden_notices", $user_id );
+		$stored = NoticeScope::Network === $scope ? get_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", true ) : get_user_option( "{$this->prefix}_hidden_notices", $user_id );
 
 		$hidden = array();
 		foreach ( \is_array( $stored ) ? $stored : array() as $key => $entry ) {
@@ -727,9 +727,9 @@ final class AdminNotices implements ComponentInterface {
 			'at'    => \time(),
 		);
 		if ( NoticeScope::Network === $scope ) {
-			\update_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", \wp_slash( $hidden ) );
+			update_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", wp_slash( $hidden ) );
 		} else {
-			\update_user_option( $user_id, "{$this->prefix}_hidden_notices", \wp_slash( $hidden ) );
+			update_user_option( $user_id, "{$this->prefix}_hidden_notices", wp_slash( $hidden ) );
 		}
 
 		return true;
@@ -756,7 +756,7 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $id      The notice's id.
 		 * @param   string $scope   The notice's scope.
 		 */
-		$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
+		$message = apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
 
 		return \is_string( $message ) ? $message : $notice->message;
 	}
@@ -806,7 +806,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_nonce_action( NoticeScope $scope, string $id ): string {
-		return "{$this->prefix}_dismiss|" . \get_current_blog_id() . ":$scope->value:$id";
+		return "{$this->prefix}_dismiss|" . get_current_blog_id() . ":$scope->value:$id";
 	}
 
 	// endregion

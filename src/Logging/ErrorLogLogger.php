@@ -53,7 +53,7 @@ final class ErrorLogLogger extends AbstractLogger {
 		}
 
 		\error_log( self::format_record( $this->channel, $level, self::interpolate( (string) $message, $context ), $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
-		\do_action( "qm/$level", $message, $context );
+		do_action( "qm/$level", $message, $context );
 	}
 
 	// endregion
