@@ -11,7 +11,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Keeps a plugin's admin notices, shows them in the admin and lets users dismiss them through a REST endpoint.
+ * Keeps a plugin's admin notices, shows them in the admin, the post editor included, and lets users dismiss them through a REST endpoint.
  *
  * The prefix names the plugin's storage keys, hooks and REST namespace. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta.
  *
@@ -110,6 +110,7 @@ final class AdminNotices implements ComponentInterface {
 	#[\Override]
 	public function register_hooks(): void {
 		\add_action( 'all_admin_notices', array( $this, 'render_notices' ) );
+		\add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_script' ) );
 		\add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 		\add_action( 'admin_footer', array( $this, 'enqueue_dismiss_script' ) );
 	}
@@ -183,16 +184,18 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the notices the current user sees here, in scope order.
+	 * Returns the notices the current user sees here in scope order, or for the block editor the site, network and user one-shots that name no screens.
 	 *
-	 * A scope whose storage throws is logged and left out.
+	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose storage throws is logged and left out.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @param   bool $block_editor Whether to select the block editor's notices.
+	 *
 	 * @return  list<Notice>
 	 */
-	protected function select(): array {
+	protected function select( bool $block_editor ): array {
 		$user_id = \get_current_user_id();
 		if ( 0 === $user_id ) {
 			return array();
@@ -201,6 +204,7 @@ final class AdminNotices implements ComponentInterface {
 		$selected = array();
 		foreach ( self::ORDER as $scope ) {
 			$shows_here = match ( true ) {
+				$block_editor       => NoticeScope::Request !== $scope,
 				\is_network_admin() => NoticeScope::Site !== $scope,
 				\is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
 				default             => \is_blog_admin(),
@@ -211,6 +215,10 @@ final class AdminNotices implements ComponentInterface {
 
 			try {
 				foreach ( $this->read( $scope, $this->get_owner( $scope, 0 ) ) as $notice ) {
+					if ( $block_editor && ( $notice->persistent || array() !== $notice->screens ) ) {
+						continue;
+					}
+
 					if ( array() !== $notice->screens && ! \in_array( \get_current_screen()?->id, $notice->screens, true ) ) {
 						continue;
 					}
@@ -290,7 +298,7 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		foreach ( $this->select() as $notice ) {
+		foreach ( $this->select( false ) as $notice ) {
 			$attributes = array(
 				'data-notices'      => $this->prefix,
 				'data-notice-scope' => $notice->scope->value,
@@ -301,20 +309,8 @@ final class AdminNotices implements ComponentInterface {
 				$this->needs_dismiss_script      = true;
 			}
 
-			/**
-			 * Filters a notice's message as it prints, such as to translate it for the viewer or add a link that needs a fresh nonce.
-			 *
-			 * @since   2.0.0
-			 * @version 2.0.0
-			 *
-			 * @param   string $message The message, as HTML.
-			 * @param   string $id      The notice's id.
-			 * @param   string $scope   The notice's scope.
-			 */
-			$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
-
 			\wp_admin_notice(
-				\is_string( $message ) ? $message : $notice->message,
+				$this->get_message( $notice ),
 				array(
 					'type'        => $notice->type->value,
 					'dismissible' => $notice->dismissible,
@@ -327,7 +323,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Registers the dismissal endpoint, POST {namespace}/notices/dismissals.
+	 * Registers the dismissal endpoint, POST {namespace}/notices/dismissals, and the block editor's delivery endpoint, POST {namespace}/notices/deliveries.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -357,6 +353,71 @@ final class AdminNotices implements ComponentInterface {
 				),
 			)
 		);
+		\register_rest_route(
+			$this->get_rest_namespace(),
+			'/notices/deliveries',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'rest_deliver' ),
+				'permission_callback' => 'is_user_logged_in',
+			)
+		);
+	}
+
+	/**
+	 * Enqueues, on the post editor, the script that shows the current user's block-editor notices, fetched from the delivery endpoint as the editor loads with one-shots waiting and after each save that is not an autosave.
+	 *
+	 * The load only reports whether one-shots wait, because the meta boxes' save loads the edit screen in the background and discards it. The editor.savePost handler runs at priority 20, after the meta boxes save at 10, so it fetches the rejections that save reported, and it never throws, because a throw there reports the save as failed. Messages show as HTML, as on classic screens.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 */
+	public function enqueue_editor_script(): void {
+		// The other block editors, such as the site editor while it browses, show no notices, so a one-shot delivered there would be lost.
+		$screen = \function_exists( 'get_current_screen' ) ? \get_current_screen() : null;
+		if ( true !== $screen?->is_block_editor() || 'post' !== $screen->base ) {
+			return;
+		}
+
+		$settings = \wp_json_encode(
+			array(
+				'prefix'  => $this->prefix,
+				'path'    => "{$this->get_rest_namespace()}/notices/deliveries",
+				'waiting' => array() !== $this->select( true ),
+			)
+		);
+
+		\wp_register_script( "{$this->prefix}-notice-delivery", false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		\wp_add_inline_script(
+			"{$this->prefix}-notice-delivery",
+			<<<JS
+			( function ( settings ) {
+				function deliver() {
+					wp.apiFetch( { path: settings.path, method: 'POST' } ).then( function ( notices ) {
+						notices.forEach( function ( notice ) {
+							wp.data.dispatch( 'core/notices' ).createNotice( notice.status, notice.content, {
+								id: notice.id,
+								isDismissible: notice.isDismissible,
+								__unstableHTML: true
+							} );
+						} );
+					} ).catch( function ( error ) {
+						console.error( 'The notice delivery failed.', error );
+					} );
+				}
+
+				if ( settings.waiting ) {
+					deliver();
+				}
+				wp.hooks.addAction( 'editor.savePost', settings.prefix + '/notices', function ( post, options ) {
+					if ( ! ( options && options.isAutosave ) ) {
+						deliver();
+					}
+				}, 20 );
+			} )( $settings );
+			JS
+		);
+		\wp_enqueue_script( "{$this->prefix}-notice-delivery" );
 	}
 
 	/**
@@ -471,6 +532,29 @@ final class AdminNotices implements ComponentInterface {
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
+	}
+
+	/**
+	 * Returns the one-shots the block editor shows the current user, as its notices store takes them, and acknowledges them.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  list<array{id: string, status: string, content: string, isDismissible: bool}>
+	 */
+	public function rest_deliver(): array {
+		$delivered = array();
+		foreach ( $this->select( true ) as $notice ) {
+			$delivered[] = array(
+				'id'            => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
+				'status'        => $notice->type->value,
+				'content'       => \wp_kses_post( $this->get_message( $notice ) ),
+				'isDismissible' => $notice->dismissible,
+			);
+			$this->acknowledge( $notice );
+		}
+
+		return $delivered;
 	}
 
 	// endregion
@@ -649,6 +733,32 @@ final class AdminNotices implements ComponentInterface {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Returns the notice's message as it prints.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   Notice $notice The notice.
+	 *
+	 * @return  string
+	 */
+	protected function get_message( Notice $notice ): string {
+		/**
+		 * Filters a notice's message as it prints, such as to translate it for the viewer or add a link that needs a fresh nonce.
+		 *
+		 * @since   2.0.0
+		 * @version 2.0.0
+		 *
+		 * @param   string $message The message, as HTML.
+		 * @param   string $id      The notice's id.
+		 * @param   string $scope   The notice's scope.
+		 */
+		$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
+
+		return \is_string( $message ) ? $message : $notice->message;
 	}
 
 	/**
