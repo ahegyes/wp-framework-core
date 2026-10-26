@@ -70,6 +70,8 @@ final class Uninstaller {
 	 * @param   array<string, mixed> $args        Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default none, which keeps the footprint.
 	 *
 	 * @throws  RuntimeException Thrown when a web request runs on a large network, before any change, or when a delete, a site's pass or the cleanup failed, once every site was visited.
+	 *
+	 * @return  void
 	 */
 	public static function run( string $plugin_file, array $footprint, array $args = array() ): void {
 		$args            += array(
@@ -160,6 +162,8 @@ final class Uninstaller {
 	 * @global  \wpdb $wpdb The WordPress database connection.
 	 *
 	 * @param   bool $network_footprint Whether the pass also deletes the network options and network-wide user meta, which a single site keeps as its own.
+	 *
+	 * @return  void
 	 */
 	protected function uninstall_site( bool $network_footprint ): void {
 		global $wpdb;
@@ -328,6 +332,8 @@ final class Uninstaller {
 	 * @version 2.0.0
 	 *
 	 * @global  \wpdb $wpdb The WordPress database connection.
+	 *
+	 * @return  void
 	 */
 	protected function delete_network_footprint(): void {
 		global $wpdb;
@@ -364,6 +370,8 @@ final class Uninstaller {
 	 *
 	 * @param   string       $meta_type The meta type.
 	 * @param   list<string> $keys      The meta keys.
+	 *
+	 * @return  void
 	 */
 	protected function delete_meta_keys( string $meta_type, array $keys ): void {
 		global $wpdb;

@@ -16,6 +16,8 @@ interface ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function register_hooks(): void;
 }

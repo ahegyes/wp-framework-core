@@ -164,6 +164,8 @@ final class MigrationRunner implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @throws  \Throwable Thrown when a step fails in a local or development environment, after its error was recorded.
+	 *
+	 * @return  void
 	 */
 	public function run(): void {
 		$target = \count( $this->steps );
@@ -317,6 +319,8 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function render_notice(): void {
 		$revision = self::get_revision( $this->option );
@@ -358,6 +362,8 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function run_now(): void {
 		check_admin_referer( "{$this->get_hook()}_now" );
@@ -417,6 +423,8 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	protected function unlock(): void {
 		try {
@@ -441,6 +449,8 @@ final class MigrationRunner implements ComponentInterface {
 	 * @param   int $revision The revision reached.
 	 *
 	 * @throws  RuntimeException Thrown when the revision is not written.
+	 *
+	 * @return  void
 	 */
 	protected function checkpoint( int $revision ): void {
 		if ( ! update_option( $this->option, $revision, true ) ) {
@@ -460,6 +470,8 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @param   string   $message  The failure's message.
 	 * @param   int|null $revision The revision whose step failed, or null for a failure before any step.
+	 *
+	 * @return  void
 	 */
 	protected function record_error( string $message, ?int $revision ): void {
 		$now = $this->clock->now()->getTimestamp();

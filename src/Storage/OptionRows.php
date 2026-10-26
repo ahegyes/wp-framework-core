@@ -177,6 +177,8 @@ final class OptionRows {
 	 * @param   int    $max_length Optional. The most characters the name may hold. Default is the 191 of the option_name column.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the name is empty, surrounded by whitespace or longer than the maximum.
+	 *
+	 * @return  void
 	 */
 	public static function check_name( string $name, int $max_length = self::MAX_NAME_LENGTH ): void {
 		if ( '' === $name || \trim( $name ) !== $name || \mb_strlen( $name ) > $max_length ) {
@@ -275,6 +277,8 @@ final class OptionRows {
 	 * @version 2.0.0
 	 *
 	 * @param   string $name The option name.
+	 *
+	 * @return  void
 	 */
 	protected static function forget( string $name ): void {
 		wp_cache_delete( $name, 'options' );

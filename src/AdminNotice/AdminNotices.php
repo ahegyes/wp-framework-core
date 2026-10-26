@@ -132,6 +132,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for a notice of another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
+	 *
+	 * @return  void
 	 */
 	public function add( Notice $notice, int $user_id = 0 ): void {
 		if ( NoticeScope::Request === $notice->scope && 0 < did_action( 'all_admin_notices' ) ) {
@@ -160,6 +162,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
+	 *
+	 * @return  void
 	 */
 	public function remove( string $id, NoticeScope $scope, int $user_id = 0 ): void {
 		$this->delete( $scope, $this->get_owner( $scope, $user_id ), $id );
@@ -263,6 +267,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   Notice $notice The notice as it was selected.
+	 *
+	 * @return  void
 	 */
 	protected function acknowledge( Notice $notice ): void {
 		if ( $notice->persistent ) {
@@ -291,6 +297,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function render_notices(): void {
 		// The screen API loads only in the admin.
@@ -327,6 +335,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function register_rest_routes(): void {
 		register_rest_route(
@@ -371,6 +381,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function enqueue_editor_script(): void {
 		// The other block editors, such as the site editor while it browses, show no notices, so a one-shot delivered there would be lost.
@@ -427,6 +439,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function enqueue_dismiss_script(): void {
 		if ( ! $this->needs_dismiss_script ) {
@@ -639,6 +653,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @param   NoticeScope           $scope   The scope.
 	 * @param   int                   $owner   The owner.
 	 * @param   array<string, Notice> $notices The notices by id.
+	 *
+	 * @return  void
 	 */
 	protected function write( NoticeScope $scope, int $owner, array $notices ): void {
 		$rows = \array_map( static fn ( Notice $notice ): array => $notice->to_array(), $notices );
@@ -770,6 +786,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @param   string      $message   The message, with {scope} and {message} placeholders.
 	 * @param   NoticeScope $scope     The scope whose storage failed.
 	 * @param   \Throwable  $exception The failure.
+	 *
+	 * @return  void
 	 */
 	protected function log( string $message, NoticeScope $scope, \Throwable $exception ): void {
 		$this->logger->error(

@@ -64,6 +64,8 @@ final class PluginBoot {
 	 * @param   callable(): bool $compose The composition, which builds the plugin, boots its kernel and returns false after reporting an unmet requirement.
 	 *
 	 * @throws  \Throwable Thrown when the composition fails in a local or development environment, after the failure action fired.
+	 *
+	 * @return  void
 	 */
 	public function run( callable $compose ): void {
 		try {

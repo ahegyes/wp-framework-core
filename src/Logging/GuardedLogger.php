@@ -49,6 +49,8 @@ final class GuardedLogger extends AbstractLogger {
 	 * @param   array<mixed>       $context The values to interpolate, and any Throwable under the exception key.
 	 *
 	 * @throws  PsrInvalidArgumentException Thrown when the level is not a PSR-3 level.
+	 *
+	 * @return  void
 	 */
 	#[\Override]
 	public function log( mixed $level, string|\Stringable $message, array $context = array() ): void {

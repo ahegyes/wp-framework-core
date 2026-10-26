@@ -163,6 +163,8 @@ final class WpCronBackend implements BackendInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function register_schedules(): void {
 		add_filter( 'cron_schedules', array( $this, 'add_schedules' ) ); // phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Recurrence sets the intervals, with a minimum of 60 seconds.

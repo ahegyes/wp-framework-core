@@ -77,6 +77,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @return  void
 	 */
 	public function run(): void {
 		$roles       = wp_roles();
@@ -194,6 +196,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @param   string $option    The name of the option written.
 	 * @param   mixed  $old_value The option's previous value.
 	 * @param   mixed  $value     The option's new value.
+	 *
+	 * @return  void
 	 */
 	public function forget_deleted_roles( string $option, mixed $old_value, mixed $value ): void {
 		global $wpdb;
@@ -245,6 +249,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @param   string $fingerprint The fingerprint, or an empty string when the next run has work to do.
 	 * @param   Pairs  $grants      The ledger of grants made.
 	 * @param   Pairs  $pending     The grants about to be made.
+	 *
+	 * @return  void
 	 */
 	protected function write_row( string $fingerprint, array $grants, array $pending ): void {
 		update_option(

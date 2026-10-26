@@ -141,6 +141,8 @@ final readonly class Lock {
 	 * @param   string $owner The token that names the holder.
 	 *
 	 * @throws  RuntimeException Thrown when the lock cannot be read or deleted.
+	 *
+	 * @return  void
 	 */
 	public function release( string $owner ): void {
 		$row = OptionRows::get( $this->name );

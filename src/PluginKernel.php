@@ -79,6 +79,8 @@ final class PluginKernel {
 	 * @param   list<class-string> $roots The top-level component classes, in order.
 	 *
 	 * @throws  LogicException Thrown when a class is not a component, appears twice in the tree, or resolves to an entry of another type.
+	 *
+	 * @return  void
 	 */
 	public function boot( array $roots ): void {
 		foreach ( $this->resolve( $roots ) as $component ) {
