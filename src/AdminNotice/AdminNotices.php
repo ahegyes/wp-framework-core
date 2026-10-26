@@ -210,7 +210,6 @@ final class AdminNotices implements ComponentInterface {
 			}
 
 			try {
-				$hidden = $this->get_hidden( $scope, $user_id );
 				foreach ( $this->read( $scope, $this->get_owner( $scope, 0 ) ) as $notice ) {
 					if ( array() !== $notice->screens && ! \in_array( \get_current_screen()?->id, $notice->screens, true ) ) {
 						continue;
@@ -220,7 +219,7 @@ final class AdminNotices implements ComponentInterface {
 						continue;
 					}
 
-					$state = $notice->is_shared() ? null : ( $hidden[ "$scope->value:$notice->id" ]['state'] ?? null );
+					$state = $notice->is_shared() ? null : ( $this->get_hidden( $scope, $user_id )[ "$scope->value:$notice->id" ]['state'] ?? null );
 					if ( 'dismissed' === $state || ( 'delivered' === $state && ! $notice->persistent ) ) {
 						continue;
 					}
