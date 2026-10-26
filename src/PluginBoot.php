@@ -73,7 +73,7 @@ final class PluginBoot {
 		} catch ( \Throwable $exception ) {
 			$this->status = 'failed';
 
-			// A deterministic failure repeats on every request, so each distinct message is logged at most once an hour.
+			// A deterministic failure repeats on every request, so each distinct message is logged about once an hour, as best effort.
 			$key = "{$this->prefix}_boot_failure_" . \md5( $exception->getMessage() );
 			if ( false === get_transient( $key ) ) {
 				set_transient( $key, 1, HOUR_IN_SECONDS );

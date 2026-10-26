@@ -211,8 +211,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
-		// Given no hook name, Action Scheduler would cancel the pending actions of every hook.
-		$hook  = ( new ScheduledHook( $hook ) )->hook;
+		$hook  = ( new ScheduledHook( $hook ) )->hook; // Given no hook name, Action Scheduler would cancel the pending actions of every hook.
 		$ready = $this->check_ready( __METHOD__ );
 		if ( true !== $ready ) {
 			return $ready;
@@ -314,7 +313,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 		}
 
 		$census = $this->census( $hook );
-
 		return match ( true ) {
 			0 < $census['running_recurring'] => new \WP_Error( 'scheduler_running', "A recurring occurrence of hook '$hook->hook' is running and queues its successor when it completes." ),
 			0 < $census['pending']           => new \WP_Error( 'scheduler_failed', "Hook '$hook->hook' still has pending invocations." ),

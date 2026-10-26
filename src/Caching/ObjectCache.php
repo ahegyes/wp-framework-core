@@ -50,7 +50,6 @@ final class ObjectCache implements PsrCacheInterface {
 	#[\Override]
 	public function get( string $key, mixed $default = null ): mixed { // phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound -- PSR-16 names the parameter, and callers may pass it by name.
 		$entry = $this->read( $key );
-
 		return \is_null( $entry ) ? $default : $entry[0];
 	}
 
@@ -213,7 +212,6 @@ final class ObjectCache implements PsrCacheInterface {
 	protected function read( string $key ): ?array {
 		$name = \md5( CacheEntries::check_key( $key ) );
 		$salt = $this->find_salt();
-
 		return \is_null( $salt ) ? null : CacheEntries::unwrap( wp_cache_get( $name, $this->group ), $salt );
 	}
 

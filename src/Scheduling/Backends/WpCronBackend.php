@@ -128,7 +128,6 @@ final class WpCronBackend implements BackendInterface {
 		// WP-Cron rejects a schedule name that the cron_schedules filter does not return yet, so the interval is added before the write, whether or not this request registered the filter.
 		$this->register_schedules();
 		$this->intervals[ $schedule ] = $recurrence->interval;
-
 		return self::to_result( wp_schedule_event( \time(), $schedule, $hook->hook, $hook->args, true ) );
 	}
 
@@ -226,7 +225,6 @@ final class WpCronBackend implements BackendInterface {
 	 */
 	protected function get_cron(): array {
 		$cron = get_option( 'cron', array() );
-
 		return \is_array( $cron ) ? $cron : array();
 	}
 

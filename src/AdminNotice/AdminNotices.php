@@ -301,8 +301,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  void
 	 */
 	public function render_notices(): void {
-		// The screen API loads only in the admin.
-		if ( \function_exists( 'get_current_screen' ) && true === get_current_screen()?->is_block_editor() ) {
+		if ( \function_exists( 'get_current_screen' ) && true === get_current_screen()?->is_block_editor() ) { // The screen API loads only in the admin.
 			return;
 		}
 
@@ -526,7 +525,6 @@ final class AdminNotices implements ComponentInterface {
 			$changed = null !== $notice && $notice->is_shared() ? $this->delete( $scope, $owner, $id ) : $this->hide( $scope, $id, $user_id, 'dismissed' );
 		} catch ( \Throwable $exception ) {
 			$this->log( 'Could not dismiss a {scope} notice: {message}', $scope, $exception );
-
 			return new \WP_Error( 'rest_notice_store_error', 'The notice store failed.', array( 'status' => 500 ) );
 		}
 
@@ -686,7 +684,6 @@ final class AdminNotices implements ComponentInterface {
 
 		unset( $notices[ $id ] );
 		$this->write( $scope, $owner, $notices );
-
 		return true;
 	}
 
@@ -773,7 +770,6 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $scope   The notice's scope.
 		 */
 		$message = apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
-
 		return \is_string( $message ) ? $message : $notice->message;
 	}
 

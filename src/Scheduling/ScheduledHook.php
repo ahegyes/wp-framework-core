@@ -42,8 +42,7 @@ final readonly class ScheduledHook extends AbstractValueObject {
 			throw new InvalidArgumentException( "Hook '$hook' is not 1 to 191 bytes without whitespace, other than '0'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		// Action Scheduler refuses arguments whose wp_json_encode() output exceeds 8,000 bytes.
-		if ( \strlen( (string) wp_json_encode( $args ) ) > 8000 ) {
+		if ( \strlen( (string) wp_json_encode( $args ) ) > 8000 ) { // Action Scheduler refuses arguments whose wp_json_encode() output exceeds 8,000 bytes.
 			throw new InvalidArgumentException( "The arguments of hook '$hook' exceed 8,000 bytes of JSON." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}

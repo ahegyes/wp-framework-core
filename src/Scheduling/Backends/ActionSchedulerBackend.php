@@ -80,7 +80,6 @@ final class ActionSchedulerBackend implements BackendInterface {
 	public function census( ScheduledHook $hook ): array {
 		$pending = as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_PENDING ), OBJECT );
 		$running = as_get_scheduled_actions( $this->get_query( $hook, \ActionScheduler_Store::STATUS_RUNNING ), OBJECT );
-
 		return array(
 			'pending'           => \count( $pending ),
 			'pending_intervals' => self::get_intervals( $pending ),

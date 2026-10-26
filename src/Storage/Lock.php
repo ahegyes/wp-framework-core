@@ -55,8 +55,7 @@ final readonly class Lock {
 	) {
 		OptionRows::check_name( $name );
 
-		// A hold whose TTL is below 1 second expires as it is taken, which would end the exclusion without a sign.
-		if ( $ttl < 1 ) {
+		if ( $ttl < 1 ) { // A hold whose TTL is below 1 second expires as it is taken, which would end the exclusion without a sign.
 			throw new InvalidArgumentException( "Lock TTL '$ttl' is below 1 second." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
@@ -83,8 +82,7 @@ final readonly class Lock {
 	 * @return  LockClaim
 	 */
 	public function acquire( string $owner ): LockClaim {
-		// An empty owner would write a row that holds no lock, which the next claim takes over.
-		if ( '' === $owner ) {
+		if ( '' === $owner ) { // An empty owner would write a row that holds no lock, which the next claim takes over.
 			throw new InvalidArgumentException( 'A lock owner cannot be empty.' );
 		}
 

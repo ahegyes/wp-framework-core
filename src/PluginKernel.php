@@ -130,8 +130,7 @@ final class PluginKernel {
 
 			$components[] = $component;
 			if ( \is_a( $class, CompositeComponentInterface::class, true ) ) {
-				// The declared class names the children, so no runtime state can add an unvisited node.
-				\array_push( $components, ...$this->resolve( $class::get_child_component_classes() ) );
+				\array_push( $components, ...$this->resolve( $class::get_child_component_classes() ) ); // The declared class names the children, so no runtime state can add an unvisited node.
 			}
 		}
 

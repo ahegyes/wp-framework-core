@@ -134,8 +134,7 @@ final class CapabilityGrants implements ComponentInterface {
 		// The pending write precedes the grants, so a request killed after granting leaves the next run a record that tells its grants from hand grants.
 		if ( array() !== $granted ) {
 			$this->write_row( '', $ledger, $granted );
-			// update_option() also returns false for an unchanged value, so the record is read back.
-			if ( $this->get_row()['pending'] !== $granted ) {
+			if ( $this->get_row()['pending'] !== $granted ) { // update_option() also returns false for an unchanged value, so the record is read back.
 				$this->logger->warning( 'The ledger row did not keep the pending grants, so the next request makes them.' );
 				return;
 			}
@@ -278,7 +277,6 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	protected static function get_capabilities( mixed $roles, string $role ): ?array {
 		$data = \is_array( $roles ) ? $roles[ $role ] ?? null : null;
-
 		return \is_array( $data ) && \is_array( $data['capabilities'] ?? null ) ? $data['capabilities'] : null;
 	}
 

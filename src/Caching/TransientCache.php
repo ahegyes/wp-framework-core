@@ -87,7 +87,6 @@ final class TransientCache implements PsrCacheInterface {
 	#[\Override]
 	public function get( string $key, mixed $default = null ): mixed { // phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.defaultFound -- PSR-16 names the parameter, and callers may pass it by name.
 		$entry = $this->read( $key );
-
 		return \is_null( $entry ) ? $default : $entry[0];
 	}
 
@@ -111,9 +110,7 @@ final class TransientCache implements PsrCacheInterface {
 		}
 
 		$entry = CacheEntries::wrap( $value, $generation );
-
-		// set_transient() also returns false when the store already holds the entry.
-		return set_transient( $name, $entry, $lifetime ) || maybe_serialize( get_transient( $name ) ) === maybe_serialize( $entry );
+		return set_transient( $name, $entry, $lifetime ) || maybe_serialize( get_transient( $name ) ) === maybe_serialize( $entry ); // set_transient() also returns false when the store already holds the entry.
 	}
 
 	/**
@@ -125,9 +122,7 @@ final class TransientCache implements PsrCacheInterface {
 	#[\Override]
 	public function delete( string $key ): bool {
 		$name = $this->get_name( $key );
-
-		// delete_transient() also returns false when the store holds no entry.
-		return delete_transient( $name ) || false === get_transient( $name );
+		return delete_transient( $name ) || false === get_transient( $name ); // delete_transient() also returns false when the store holds no entry.
 	}
 
 	/**

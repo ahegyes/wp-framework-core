@@ -108,8 +108,7 @@ final class Uninstaller {
 		if ( ! is_multisite() ) {
 			$uninstaller->uninstall_site( true );
 		} else {
-			// A web request could not finish sweeping a large network within the server's time limit, which WP-CLI does not have.
-			if ( wp_is_large_network() && ! self::is_constant_true( 'WP_CLI' ) ) {
+			if ( wp_is_large_network() && ! self::is_constant_true( 'WP_CLI' ) ) { // A web request could not finish sweeping a large network within the server's time limit, which WP-CLI does not have.
 				throw new RuntimeException( 'Uninstall does not sweep a large network in a web request; run `wp plugin uninstall` instead.' );
 			}
 
@@ -124,8 +123,7 @@ final class Uninstaller {
 					$uninstaller->uninstall_site( false );
 				} finally {
 					restore_current_blog();
-					// WordPress keeps every visited site's options in its runtime cache, so the sweep's memory would grow with each site.
-					if ( wp_cache_supports( 'flush_runtime' ) ) {
+					if ( wp_cache_supports( 'flush_runtime' ) ) { // WordPress keeps every visited site's options in its runtime cache, so the sweep's memory would grow with each site.
 						wp_cache_flush_runtime();
 					}
 				}
@@ -154,8 +152,6 @@ final class Uninstaller {
 	/**
 	 * Runs the uninstall pass on the current site, which unschedules the plugin's jobs and, only where the site consents, runs the cleanup and deletes the footprint.
 	 *
-	 * A throw, such as one from another plugin's hook, ends only this site's pass, and the retry finds the rest of its footprint and its consent row.
-	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
@@ -180,8 +176,7 @@ final class Uninstaller {
 				$this->record_failure( "cron hook $hook", $result );
 			}
 
-			// Action Scheduler is loaded only while a plugin that bundles it is active.
-			if ( \function_exists( 'as_unschedule_all_actions' ) ) {
+			if ( \function_exists( 'as_unschedule_all_actions' ) ) { // Action Scheduler is loaded only while a plugin that bundles it is active.
 				$jobs = array();
 				foreach ( self::get_strings( $this->footprint['as_hooks'] ?? null ) as $hook ) {
 					$jobs[ "Action Scheduler hook $hook" ] = array( $hook );
@@ -193,8 +188,7 @@ final class Uninstaller {
 				foreach ( $jobs as $subject => $arguments ) {
 					$wpdb->flush();
 					try {
-						// Action Scheduler throws when its store fails to cancel an action.
-						as_unschedule_all_actions( ...$arguments );
+						as_unschedule_all_actions( ...$arguments ); // Action Scheduler throws when its store fails to cancel an action.
 						$result = null;
 					} catch ( \Throwable $throwable ) {
 						$result = $throwable;
@@ -217,8 +211,7 @@ final class Uninstaller {
 				return;
 			}
 
-			// A failed cleanup keeps the footprint, so its retry still finds every row it reads.
-			if ( ! $this->run_cleanup( 'site' ) ) {
+			if ( ! $this->run_cleanup( 'site' ) ) { // A failed cleanup keeps the footprint, so its retry still finds every row it reads.
 				return;
 			}
 
@@ -283,16 +276,14 @@ final class Uninstaller {
 					}
 				}
 
-				// Where the object cache cannot flush a single group, the entries expire on their own.
-				if ( wp_cache_supports( 'flush_group' ) ) {
+				if ( wp_cache_supports( 'flush_group' ) ) { // Where the object cache cannot flush a single group, the entries expire on their own.
 					foreach ( $meta_type['cache_groups'] as $group ) {
 						wp_cache_flush_group( $group );
 					}
 				}
 			}
 
-			// Site user meta keys carry the site's table prefix, as update_user_option() writes them.
-			$blog_prefix = $wpdb->get_blog_prefix();
+			$blog_prefix = $wpdb->get_blog_prefix(); // Site user meta keys carry the site's table prefix, as update_user_option() writes them.
 			$this->delete_meta_keys( 'user', \array_map( static fn ( string $key ): string => $blog_prefix . $key, self::get_strings( $this->footprint['user_meta_site'] ?? null ) ) );
 			foreach ( self::get_strings( $this->footprint['user_meta_site_prefixes'] ?? null ) as $prefix ) {
 				$this->delete_meta_keys( 'user', $this->get_names_by_prefix( $wpdb->usermeta, 'meta_key', $blog_prefix . $prefix ) );

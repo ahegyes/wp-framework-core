@@ -56,8 +56,7 @@ final class CacheEntries {
 	 * @return  string
 	 */
 	public static function check_key( mixed $key ): string {
-		// PHP turns a numeric array key into an integer, so a key of setMultiple() can arrive as one.
-		if ( \is_int( $key ) ) {
+		if ( \is_int( $key ) ) { // PHP turns a numeric array key into an integer, so a key of setMultiple() can arrive as one.
 			$key = (string) $key;
 		}
 
