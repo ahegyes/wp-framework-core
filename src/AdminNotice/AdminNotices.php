@@ -2,15 +2,10 @@
 
 namespace DeepWebSolutions\Framework\Core\AdminNotice;
 
-use DeepWebSolutions\Framework\Core\AdminNotice\Stores\OptionNoticeStore;
-use DeepWebSolutions\Framework\Core\AdminNotice\Stores\RequestNoticeStore;
-use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserMetaRecipientStates;
-use DeepWebSolutions\Framework\Core\AdminNotice\Stores\UserNoticeStore;
 use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
-use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 \defined( 'ABSPATH' ) || exit;
@@ -18,7 +13,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Keeps a plugin's admin notices, shows them in the admin and lets users dismiss them through a REST endpoint.
  *
- * The prefix names the plugin's storage keys, hooks and REST namespace. Request notices live in the instance, so components that add them must share it.
+ * The prefix names the plugin's storage keys, hooks and REST namespace. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -37,44 +32,34 @@ final class AdminNotices implements ComponentInterface {
 	protected const string PREFIX_PATTERN = '/\A[a-z][a-z0-9_]{0,31}\z/';
 
 	/**
-	 * The segments a prefix may not contain, because storage names append them to prefixes, so such a prefix could name another plugin's rows.
+	 * The segments a prefix may not contain, because the storage keys put them after a prefix, so such a prefix could name another plugin's keys.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @var     list<string>
 	 */
-	protected const array RESERVED_SEGMENTS = array( 'notice', 'network' );
+	protected const array RESERVED_SEGMENTS = array( 'network', 'hidden' );
 
 	/**
-	 * The content store of each scope.
+	 * The scopes in the order their notices show.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     array<value-of<NoticeScope>, NoticeStoreInterface>
+	 * @var     list<NoticeScope>
 	 */
-	protected array $stores = array();
+	protected const array ORDER = array( NoticeScope::Network, NoticeScope::Site, NoticeScope::User, NoticeScope::Request );
 
 	/**
-	 * The recipient-state store.
+	 * The rows of the request notices, by id.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @var     RecipientStateStoreInterface
+	 * @var     array<mixed>
 	 */
-	protected RecipientStateStoreInterface $states;
-
-	/**
-	 * The selection and acknowledgement of the notices to show.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     NoticeSelector
-	 */
-	protected NoticeSelector $selector;
+	protected array $request_notices = array();
 
 	/**
 	 * Whether this request showed a notice that carries a dismissal nonce.
@@ -96,35 +81,20 @@ final class AdminNotices implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string                                             $prefix The plugin's prefix, matching PREFIX_PATTERN without a reserved segment.
-	 * @param   PsrLoggerInterface                                 $logger The logger that records store failures.
-	 * @param   array<value-of<NoticeScope>, NoticeStoreInterface> $stores Optional. The content stores of the scopes that do not use the default stores. Default none.
-	 * @param   RecipientStateStoreInterface|null                  $states Optional. The recipient-state store. Default is the user meta store.
+	 * @param   string             $prefix The plugin's prefix, matching PREFIX_PATTERN without a reserved segment.
+	 * @param   PsrLoggerInterface $logger The logger that records store failures.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
 	 */
 	public function __construct(
 		protected string $prefix,
-		protected PsrLoggerInterface $logger,
-		array $stores = array(),
-		?RecipientStateStoreInterface $states = null
+		protected PsrLoggerInterface $logger
 	) {
 		if ( 1 !== \preg_match( self::PREFIX_PATTERN, $prefix ) || array() !== \array_intersect( \explode( '_', $prefix ), self::RESERVED_SEGMENTS ) ) {
-			throw new InvalidArgumentException( "Notices prefix '$prefix' is not a lowercase letter followed by up to 31 lowercase letters, digits and underscores, or it has a 'notice' or 'network' segment." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new InvalidArgumentException( "Notices prefix '$prefix' is not a lowercase letter followed by up to 31 lowercase letters, digits and underscores, or it has a 'network' or 'hidden' segment." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$options = null;
-		foreach ( NoticeScope::cases() as $scope ) {
-			$this->stores[ $scope->value ] = $stores[ $scope->value ] ?? match ( $scope ) {
-				NoticeScope::Request => new RequestNoticeStore(),
-				NoticeScope::User    => new UserNoticeStore( $prefix ),
-				default              => $options ??= new OptionNoticeStore( $prefix ),
-			};
-		}
-
-		$this->logger   = new GuardedLogger( $logger, $prefix );
-		$this->states   = $states ?? new UserMetaRecipientStates( $prefix );
-		$this->selector = new NoticeSelector( $prefix, $this->logger, $this->stores, $this->states );
+		$this->logger = new GuardedLogger( $logger, $prefix );
 	}
 
 	// endregion
@@ -149,7 +119,9 @@ final class AdminNotices implements ComponentInterface {
 	// region METHODS
 
 	/**
-	 * Saves a notice in its scope's store for the current context and returns its record.
+	 * Saves a notice in its scope for the current site, network or user, replacing any notice of the same id there.
+	 *
+	 * A store that throws is logged, and the notice is lost.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -159,20 +131,24 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for a notice of another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
-	 * @throws  RuntimeException         Thrown when the write fails.
-	 *
-	 * @return  StoredNotice
 	 */
-	public function add( Notice $notice, int $user_id = 0 ): StoredNotice {
+	public function add( Notice $notice, int $user_id = 0 ): void {
 		if ( NoticeScope::Request === $notice->scope && 0 < \did_action( 'all_admin_notices' ) ) {
 			\_doing_it_wrong( __METHOD__, \esc_html( "Request notice '$notice->id' was added after the admin notices showed, so it does not show." ), '2.0.0' );
 		}
 
-		return $this->stores[ $notice->scope->value ]->save( $notice, NoticeContext::current( $notice->scope, $user_id ) );
+		$owner = $this->get_owner( $notice->scope, $user_id );
+		try {
+			$notices                = $this->read( $notice->scope, $owner );
+			$notices[ $notice->id ] = $notice;
+			$this->write( $notice->scope, $owner, $notices );
+		} catch ( \Throwable $exception ) {
+			$this->log( 'Could not add a {scope} notice: {message}', $notice->scope, $exception );
+		}
 	}
 
 	/**
-	 * Deletes every record of the notice with the given id in its scope's store for the current context.
+	 * Deletes the notice with the given id from its scope for the current site, network or user.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -183,14 +159,13 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
-	 * @throws  RuntimeException         Thrown when the delete fails.
 	 */
 	public function remove( string $id, NoticeScope $scope, int $user_id = 0 ): void {
-		$this->stores[ $scope->value ]->remove( $id, NoticeContext::current( $scope, $user_id ) );
+		$this->delete( $scope, $this->get_owner( $scope, $user_id ), $id );
 	}
 
 	/**
-	 * Returns the scope's unexpired notices for the current context, oldest first.
+	 * Returns the scope's unexpired notices for the current site, network or user, in the order they were first added.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -200,12 +175,102 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
 	 * @throws  LogicException           Thrown when user notices have no user and nobody is logged in.
-	 * @throws  RuntimeException         Thrown when the store cannot be read.
 	 *
-	 * @return  list<StoredNotice>
+	 * @return  list<Notice>
 	 */
 	public function get_notices( NoticeScope $scope, int $user_id = 0 ): array {
-		return $this->stores[ $scope->value ]->all( NoticeContext::current( $scope, $user_id ) );
+		return \array_values( $this->read( $scope, $this->get_owner( $scope, $user_id ) ) );
+	}
+
+	/**
+	 * Returns the notices the current user sees here, in scope order.
+	 *
+	 * A scope whose store throws is logged and left out.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  list<Notice>
+	 */
+	protected function select(): array {
+		$user_id = \get_current_user_id();
+		if ( 0 === $user_id ) {
+			return array();
+		}
+
+		$selected = array();
+		foreach ( self::ORDER as $scope ) {
+			$shows_here = match ( true ) {
+				\is_network_admin() => NoticeScope::Site !== $scope,
+				\is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
+				default             => \is_blog_admin(),
+			};
+			if ( ! $shows_here ) {
+				continue;
+			}
+
+			try {
+				$hidden = $this->get_hidden( $scope, $user_id );
+				foreach ( $this->read( $scope, $this->get_owner( $scope, 0 ) ) as $notice ) {
+					if ( array() !== $notice->screens && ! \in_array( \get_current_screen()?->id, $notice->screens, true ) ) {
+						continue;
+					}
+
+					if ( null !== $notice->capability && ! \current_user_can( $notice->capability ) ) {
+						continue;
+					}
+
+					$state = $notice->is_shared() ? null : ( $hidden[ "$scope->value:$notice->id" ]['state'] ?? null );
+					if ( 'dismissed' === $state || ( 'delivered' === $state && ! $notice->persistent ) ) {
+						continue;
+					}
+
+					/**
+					 * Filters whether a notice shows to the current user, once its screens, its capability and the user's dismissal allow it.
+					 *
+					 * @since   2.0.0
+					 * @version 2.0.0
+					 *
+					 * @param   bool   $visible Whether the notice shows; only true shows it.
+					 * @param   string $id      The notice's id.
+					 * @param   string $scope   The notice's scope.
+					 */
+					if ( true === \apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $scope->value ) ) {
+						$selected[] = $notice;
+					}
+				}
+			} catch ( \Throwable $exception ) {
+				$this->log( 'Could not select the {scope} notices: {message}', $scope, $exception );
+			}
+		}
+
+		return $selected;
+	}
+
+	/**
+	 * Records that the current user was shown a one-shot notice, deleting it unless other viewers still need to see it.
+	 *
+	 * A store that throws is logged, so the notice may show again.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   Notice $notice The notice as it was selected.
+	 */
+	protected function acknowledge( Notice $notice ): void {
+		if ( $notice->persistent ) {
+			return;
+		}
+
+		try {
+			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope || $notice->is_shared() ) {
+				$this->delete( $notice->scope, $this->get_owner( $notice->scope, 0 ), $notice->id );
+			} else {
+				$this->hide( $notice->scope, $notice->id, \get_current_user_id(), 'delivered' );
+			}
+		} catch ( \Throwable $exception ) {
+			$this->log( 'Could not acknowledge a {scope} notice: {message}', $notice->scope, $exception );
+		}
 	}
 
 	// endregion
@@ -213,7 +278,7 @@ final class AdminNotices implements ComponentInterface {
 	// region HOOKS
 
 	/**
-	 * Prints the notices the current user sees here and acknowledges the one-shots among them.
+	 * Prints the notices the current user sees here, with what a persistent dismissible notice's dismissal needs, and acknowledges the one-shots among them.
 	 *
 	 * Block-editor screens print nothing, because the editors' styles hide classic notices.
 	 *
@@ -226,9 +291,39 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		foreach ( $this->selector->select() as $record ) {
-			$this->print_notice( $record );
-			$this->selector->acknowledge( $record );
+		foreach ( $this->select() as $notice ) {
+			$attributes = array(
+				'data-notices'      => $this->prefix,
+				'data-notice-scope' => $notice->scope->value,
+				'data-notice-id'    => $notice->id,
+			);
+			if ( $notice->persistent && $notice->dismissible ) {
+				$attributes['data-notice-nonce'] = \wp_create_nonce( $this->get_nonce_action( $notice->scope, $notice->id ) );
+				$this->needs_dismiss_script      = true;
+			}
+
+			/**
+			 * Filters a notice's message as it prints, such as to translate it for the viewer or add a link that needs a fresh nonce.
+			 *
+			 * @since   2.0.0
+			 * @version 2.0.0
+			 *
+			 * @param   string $message The message, as HTML.
+			 * @param   string $id      The notice's id.
+			 * @param   string $scope   The notice's scope.
+			 */
+			$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
+
+			\wp_admin_notice(
+				\is_string( $message ) ? $message : $notice->message,
+				array(
+					'type'        => $notice->type->value,
+					'dismissible' => $notice->dismissible,
+					'id'          => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
+					'attributes'  => $attributes,
+				)
+			);
+			$this->acknowledge( $notice );
 		}
 	}
 
@@ -247,21 +342,18 @@ final class AdminNotices implements ComponentInterface {
 				'callback'            => array( $this, 'rest_dismiss' ),
 				'permission_callback' => 'is_user_logged_in',
 				'args'                => array(
-					'scope'      => array(
+					'scope' => array(
 						'type'     => 'string',
 						'enum'     => \array_column( NoticeScope::cases(), 'value' ),
 						'required' => true,
 					),
-					'id'         => array(
+					'id'    => array(
 						'type'     => 'string',
 						'required' => true,
 					),
-					'nonce'      => array(
+					'nonce' => array(
 						'type'     => 'string',
 						'required' => true,
-					),
-					'generation' => array(
-						'type' => 'string',
 					),
 				),
 			)
@@ -306,8 +398,7 @@ final class AdminNotices implements ComponentInterface {
 						data: {
 							scope: notice.getAttribute( 'data-notice-scope' ),
 							id: notice.getAttribute( 'data-notice-id' ),
-							nonce: notice.getAttribute( 'data-notice-nonce' ),
-							generation: notice.getAttribute( 'data-notice-generation' ) || undefined
+							nonce: notice.getAttribute( 'data-notice-nonce' )
 						}
 					} ).catch( function ( error ) {
 						console.error( 'The notice dismissal failed.', error );
@@ -322,58 +413,45 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Dismisses a notice shown to the current user, deleting it when it is shared and otherwise recording the user's dismissal.
 	 *
-	 * A stored notice is dismissed only while it is the record that was shown, so a notice saved again in between shows on the next page.
-	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with scope, id, nonce and, for a stored notice, the generation shown.
+	 * @param   \WP_REST_Request<array<string, mixed>> $request The request, with the notice's scope and id and its dismissal nonce.
 	 *
 	 * @return  \WP_REST_Response|\WP_Error
 	 */
 	public function rest_dismiss( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
-		$params     = $request->get_params();
-		$scope      = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
-		$id         = $params['id'] ?? null;
-		$nonce      = $params['nonce'] ?? null;
-		$generation = $params['generation'] ?? null;
-		$user_id    = \get_current_user_id();
+		$params  = $request->get_params();
+		$scope   = \is_string( $params['scope'] ?? null ) ? NoticeScope::tryFrom( $params['scope'] ) : null;
+		$id      = $params['id'] ?? null;
+		$nonce   = $params['nonce'] ?? null;
+		$user_id = \get_current_user_id();
 
-		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) || ! ( null === $generation || \is_string( $generation ) ) ) {
-			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id, nonce or generation is invalid.', array( 'status' => 400 ) );
+		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
+			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or nonce is invalid.', array( 'status' => 400 ) );
 		}
 
-		$identity = new NoticeIdentity( NoticeContext::current( $scope ), $id );
-		if ( false === \wp_verify_nonce( $nonce, $this->get_nonce_action( $identity ) ) ) {
+		if ( false === \wp_verify_nonce( $nonce, $this->get_nonce_action( $scope, $id ) ) ) {
 			return new \WP_Error( 'rest_forbidden', 'The nonce does not match a notice shown to this user.', array( 'status' => 403 ) );
 		}
 
 		try {
-			$record = null;
+			$owner  = $this->get_owner( $scope, 0 );
+			$notice = null;
 			if ( NoticeScope::Request !== $scope ) {
-				$record = \array_find( $this->stores[ $scope->value ]->all( $identity->context ), static fn ( StoredNotice $stored ): bool => $stored->notice->id === $id );
-				if ( null === $record || $generation !== $record->generation ) {
-					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id and generation.', array( 'status' => 404 ) );
+				$notice = $this->read( $scope, $owner )[ $id ] ?? null;
+				if ( null === $notice ) {
+					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id.', array( 'status' => 404 ) );
 				}
 
-				$notice = $record->notice;
 				if ( ! $notice->persistent || ! $notice->dismissible || ( null !== $notice->capability && ! \current_user_can( $notice->capability ) ) ) {
 					return new \WP_Error( 'rest_forbidden', 'This user cannot dismiss that notice.', array( 'status' => 403 ) );
 				}
 			}
 
-			$changed = null !== $record && $record->notice->is_shared()
-				? $this->stores[ $scope->value ]->consume( $record )
-				: $this->states->record( $identity, $user_id, RecipientState::Dismissed );
+			$changed = null !== $notice && $notice->is_shared() ? $this->delete( $scope, $owner, $id ) : $this->hide( $scope, $id, $user_id, 'dismissed' );
 		} catch ( \Throwable $exception ) {
-			$this->logger->error(
-				'Could not dismiss a {scope} notice: {message}',
-				array(
-					'scope'     => $scope->value,
-					'message'   => $exception->getMessage(),
-					'exception' => $exception,
-				)
-			);
+			$this->log( 'Could not dismiss a {scope} notice: {message}', $scope, $exception );
 
 			return new \WP_Error( 'rest_notice_store_error', 'The notice store failed.', array( 'status' => 500 ) );
 		}
@@ -390,7 +468,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			\do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $identity->context->owner );
+			\do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -401,47 +479,196 @@ final class AdminNotices implements ComponentInterface {
 	// region HELPERS
 
 	/**
-	 * Prints a notice, with what its dismissal needs when it is persistent and dismissible.
+	 * Returns the owner of the scope's notices: 0 for the request, otherwise the user, or the current blog or network, so code inside switch_to_blog() addresses the switched site.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   StoredNotice $record The notice.
+	 * @param   NoticeScope $scope   The scope.
+	 * @param   int         $user_id The user of user notices, where 0 is the current user.
+	 *
+	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
+	 * @throws  LogicException           Thrown when user notices have no user and nobody is logged in.
+	 *
+	 * @return  int
 	 */
-	protected function print_notice( StoredNotice $record ): void {
-		$notice     = $record->notice;
-		$attributes = array(
-			'data-notices'      => $this->prefix,
-			'data-notice-scope' => $notice->scope->value,
-			'data-notice-id'    => $notice->id,
-		);
-		if ( $notice->persistent && $notice->dismissible ) {
-			$attributes['data-notice-nonce'] = \wp_create_nonce( $this->get_nonce_action( new NoticeIdentity( $record->context, $notice->id ) ) );
-			$this->needs_dismiss_script      = true;
-			if ( NoticeScope::Request !== $notice->scope ) {
-				$attributes['data-notice-generation'] = $record->generation;
+	protected function get_owner( NoticeScope $scope, int $user_id ): int {
+		if ( NoticeScope::User !== $scope ) {
+			if ( 0 !== $user_id ) {
+				throw new InvalidArgumentException( "A $scope->value notice belongs to no user, but user $user_id was given." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			}
+
+			return match ( $scope ) {
+				NoticeScope::Request => 0,
+				NoticeScope::Site    => \get_current_blog_id(),
+				default              => \get_current_network_id(),
+			};
+		}
+
+		$user_id = $user_id ?: \get_current_user_id();
+		if ( $user_id < 1 ) {
+			throw new LogicException( "A user notice needs a user, but it has user $user_id." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
+		return $user_id;
+	}
+
+	/**
+	 * Returns the owner's unexpired notices of the scope by id.
+	 *
+	 * An entry that is not a valid notice of the scope, or has expired, is left out, and the scope's next write drops it.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope The scope.
+	 * @param   int         $owner The owner.
+	 *
+	 * @return  array<string, Notice>
+	 */
+	protected function read( NoticeScope $scope, int $owner ): array {
+		$rows = match ( $scope ) {
+			NoticeScope::Request => $this->request_notices,
+			NoticeScope::User    => \get_user_option( "{$this->prefix}_notices", $owner ),
+			NoticeScope::Site    => \get_option( "{$this->prefix}_notices" ),
+			NoticeScope::Network => \get_network_option( $owner, "{$this->prefix}_network_notices" ),
+		};
+
+		$notices = array();
+		foreach ( \is_array( $rows ) ? $rows : array() as $row ) {
+			$notice = \is_array( $row ) ? Notice::from_array( $row ) : null;
+			if ( null !== $notice && $scope === $notice->scope && ( null === $notice->expires_at || $notice->expires_at > \time() ) ) {
+				$notices[ $notice->id ] = $notice;
 			}
 		}
 
-		/**
-		 * Filters a notice's message as it prints, such as to translate it for the viewer or add a link that needs a fresh nonce.
-		 *
-		 * @since   2.0.0
-		 * @version 2.0.0
-		 *
-		 * @param   string $message The message, as HTML.
-		 * @param   string $id      The notice's id.
-		 * @param   string $scope   The notice's scope.
-		 */
-		$message = \apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
+		return $notices;
+	}
 
-		\wp_admin_notice(
-			\is_string( $message ) ? $message : $notice->message,
+	/**
+	 * Writes the owner's notices of the scope, replacing those stored.
+	 *
+	 * User options go through wp_slash(), because the meta API unslashes what it stores.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope           $scope   The scope.
+	 * @param   int                   $owner   The owner.
+	 * @param   array<string, Notice> $notices The notices by id.
+	 */
+	protected function write( NoticeScope $scope, int $owner, array $notices ): void {
+		$rows = \array_map( static fn ( Notice $notice ): array => $notice->to_array(), $notices );
+		match ( $scope ) {
+			NoticeScope::Request => $this->request_notices = $rows,
+			NoticeScope::User    => \update_user_option( $owner, "{$this->prefix}_notices", \wp_slash( $rows ) ),
+			NoticeScope::Site    => \update_option( "{$this->prefix}_notices", $rows, false ),
+			NoticeScope::Network => \update_network_option( $owner, "{$this->prefix}_network_notices", $rows ),
+		};
+	}
+
+	/**
+	 * Deletes the owner's notice of the scope with the given id, and returns whether it was there.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope The scope.
+	 * @param   int         $owner The owner.
+	 * @param   string      $id    The notice's id.
+	 *
+	 * @return  bool
+	 */
+	protected function delete( NoticeScope $scope, int $owner, string $id ): bool {
+		$notices = $this->read( $scope, $owner );
+		if ( ! isset( $notices[ $id ] ) ) {
+			return false;
+		}
+
+		unset( $notices[ $id ] );
+		$this->write( $scope, $owner, $notices );
+
+		return true;
+	}
+
+	/**
+	 * Returns the user's dismissals and showings of the scope's notices, keyed by scope and id: per site, or network-wide for network notices.
+	 *
+	 * The two keys differ in name, because get_user_option() falls back to a network-wide key of the same name. An invalid entry is left out, and the next write drops it.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope   The scope.
+	 * @param   int         $user_id The user.
+	 *
+	 * @return  array<string, array{state: string, at: int}>
+	 */
+	protected function get_hidden( NoticeScope $scope, int $user_id ): array {
+		$stored = NoticeScope::Network === $scope ? \get_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", true ) : \get_user_option( "{$this->prefix}_hidden_notices", $user_id );
+
+		$hidden = array();
+		foreach ( \is_array( $stored ) ? $stored : array() as $key => $entry ) {
+			if ( \is_string( $key ) && \is_array( $entry ) && \is_string( $entry['state'] ?? null ) && \is_int( $entry['at'] ?? null ) ) {
+				$hidden[ $key ] = array(
+					'state' => $entry['state'],
+					'at'    => $entry['at'],
+				);
+			}
+		}
+
+		return $hidden;
+	}
+
+	/**
+	 * Records the user's dismissal or showing of a notice, replacing an earlier one, and returns whether it changed.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope   The notice's scope.
+	 * @param   string      $id      The notice's id.
+	 * @param   int         $user_id The user.
+	 * @param   string      $state   Either 'dismissed' or 'delivered'.
+	 *
+	 * @return  bool
+	 */
+	protected function hide( NoticeScope $scope, string $id, int $user_id, string $state ): bool {
+		$hidden = $this->get_hidden( $scope, $user_id );
+		if ( ( $hidden[ "$scope->value:$id" ]['state'] ?? null ) === $state ) {
+			return false;
+		}
+
+		$hidden[ "$scope->value:$id" ] = array(
+			'state' => $state,
+			'at'    => \time(),
+		);
+		if ( NoticeScope::Network === $scope ) {
+			\update_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", \wp_slash( $hidden ) );
+		} else {
+			\update_user_option( $user_id, "{$this->prefix}_hidden_notices", \wp_slash( $hidden ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Logs a store failure as an error.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   string      $message   The message, with {scope} and {message} placeholders.
+	 * @param   NoticeScope $scope     The scope whose store failed.
+	 * @param   \Throwable  $exception The failure.
+	 */
+	protected function log( string $message, NoticeScope $scope, \Throwable $exception ): void {
+		$this->logger->error(
+			$message,
 			array(
-				'type'        => $notice->type->value,
-				'dismissible' => $notice->dismissible,
-				'id'          => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
-				'attributes'  => $attributes,
+				'scope'     => $scope->value,
+				'message'   => $exception->getMessage(),
+				'exception' => $exception,
 			)
 		);
 	}
@@ -459,17 +686,18 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the action of the identity's dismissal nonce.
+	 * Returns the action of a notice's dismissal nonce on the current site.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   NoticeIdentity $identity The notice identity.
+	 * @param   NoticeScope $scope The notice's scope.
+	 * @param   string      $id    The notice's id.
 	 *
 	 * @return  string
 	 */
-	protected function get_nonce_action( NoticeIdentity $identity ): string {
-		return "{$this->prefix}_dismiss|{$identity->to_key()}";
+	protected function get_nonce_action( NoticeScope $scope, string $id ): string {
+		return "{$this->prefix}_dismiss|" . \get_current_blog_id() . ":$scope->value:$id";
 	}
 
 	// endregion

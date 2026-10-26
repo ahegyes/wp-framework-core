@@ -39,7 +39,7 @@ final readonly class Notice {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string       $id          The id, unique within the notice's context and matching ID_PATTERN; a viewer's recorded dismissal or delivery outlives the notice, so a new occasion needs a new id.
+	 * @param   string       $id          The id, unique among its scope's notices and matching ID_PATTERN; a viewer's recorded dismissal or delivery outlives the notice, so a new occasion needs a new id.
 	 * @param   string       $message     The message, as HTML in the locale of the request that creates the notice.
 	 * @param   NoticeType   $type        Optional. The kind of notice. Default is an error.
 	 * @param   NoticeScope  $scope       Optional. Where the notice belongs. Default is a user.
@@ -64,7 +64,9 @@ final readonly class Notice {
 		public ?int $expires_at = null,
 		public bool $per_viewer = false
 	) {
-		self::check_id( $id );
+		if ( 1 !== \preg_match( self::ID_PATTERN, $id ) ) {
+			throw new InvalidArgumentException( "Notice id '$id' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
 
 		if ( '' === $capability ) {
 			throw new InvalidArgumentException( "The capability of notice '$id' is empty." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
@@ -125,24 +127,6 @@ final readonly class Notice {
 			'expires_at'  => $this->expires_at,
 			'per_viewer'  => $this->per_viewer,
 		);
-	}
-
-	/**
-	 * Throws when the id does not match ID_PATTERN.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @internal
-	 *
-	 * @param   string $id The notice id.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the id is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens.
-	 */
-	public static function check_id( string $id ): void {
-		if ( 1 !== \preg_match( self::ID_PATTERN, $id ) ) {
-			throw new InvalidArgumentException( "Notice id '$id' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
 	}
 
 	// endregion

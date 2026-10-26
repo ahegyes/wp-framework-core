@@ -5,7 +5,7 @@ namespace DeepWebSolutions\Framework\Core\AdminNotice;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Where an admin notice belongs, which decides the store that keeps it and the admin surfaces it shows on.
+ * Where an admin notice belongs, which decides where it is stored and the admin surfaces it shows on.
  *
  * @since   2.0.0
  * @version 2.0.0
