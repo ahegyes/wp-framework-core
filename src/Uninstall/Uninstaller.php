@@ -322,7 +322,7 @@ final class Uninstaller {
 	}
 
 	/**
-	 * Deletes the footprint's network options and network-wide user meta, which a single site keeps as its own.
+	 * Deletes the footprint's network options, on every network of a multisite, and network-wide user meta, which a single site keeps as its own.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -332,9 +332,18 @@ final class Uninstaller {
 	protected function delete_network_footprint(): void {
 		global $wpdb;
 
-		foreach ( self::get_strings( $this->footprint['network_options'] ?? null ) as $option ) {
-			$wpdb->flush();
-			$this->record_failure( "network option $option", \delete_network_option( null, $option ) );
+		$options = self::get_strings( $this->footprint['network_options'] ?? null );
+		if ( \is_multisite() ) {
+			// WordPress's delete_network_option() matches keys under the column's collation, which would also delete another plugin's key that differs only in letter case.
+			$this->delete_meta_keys( 'site', $options );
+			foreach ( $options as $option ) {
+				\wp_cache_delete( \get_current_network_id() . ":$option", 'site-options' );
+			}
+		} else {
+			foreach ( $options as $option ) {
+				$wpdb->flush();
+				$this->record_failure( "network option $option", \delete_option( $option ) );
+			}
 		}
 
 		$this->delete_meta_keys( 'user', self::get_strings( $this->footprint['user_meta_global'] ?? null ) );
