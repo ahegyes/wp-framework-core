@@ -521,9 +521,9 @@ final class Uninstaller {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   mixed $deleted The delete function's return value.
+	 * @param   \WP_Post|bool|null $deleted The delete function's return value.
 	 *
-	 * @return  mixed
+	 * @return  \WP_Post|true|\WP_Error
 	 */
 	protected static function confirm_deleted( mixed $deleted ): mixed {
 		return null === $deleted || false === $deleted ? new \WP_Error( 'not_deleted', 'It was not deleted.' ) : $deleted;

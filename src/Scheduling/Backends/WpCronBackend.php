@@ -236,7 +236,7 @@ final class WpCronBackend implements BackendInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   mixed $result The result of a WP-Cron function called with its WP_Error flag.
+	 * @param   int|bool|\WP_Error $result The result of a WP-Cron function called with its WP_Error flag.
 	 *
 	 * @return  true|\WP_Error
 	 */
