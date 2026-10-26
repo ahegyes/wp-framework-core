@@ -12,7 +12,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
  * @since   2.0.0
  * @version 2.0.0
  *
- * @phpstan-type Footprint array{cron_hooks?: list<non-empty-string>, as_hooks?: list<non-empty-string>, as_groups?: list<non-empty-string>, options?: list<non-empty-string>, option_prefixes?: list<non-empty-string>, transients?: list<non-empty-string>, post_types?: list<non-empty-string>, comment_types?: list<non-empty-string>, meta?: array<string, list<non-empty-string>>, meta_prefixes?: array<string, list<non-empty-string>>, user_meta_site?: list<non-empty-string>, user_meta_site_prefixes?: list<non-empty-string>, user_meta_global?: list<non-empty-string>, user_meta_global_prefixes?: list<non-empty-string>, capabilities?: list<non-empty-string>, tables?: list<non-empty-string>}
+ * @phpstan-type Footprint array{cron_hooks?: list<non-empty-string>, as_hooks?: list<non-empty-string>, as_groups?: list<non-empty-string>, options?: list<non-empty-string>, option_prefixes?: list<non-empty-string>, transients?: list<non-empty-string>, post_types?: list<non-empty-string>, comment_types?: list<non-empty-string>, meta?: array<string, list<non-empty-string>>, meta_prefixes?: array<string, list<non-empty-string>>, user_meta_site?: list<non-empty-string>, user_meta_site_prefixes?: list<non-empty-string>, user_meta_global?: list<non-empty-string>, user_meta_global_prefixes?: list<non-empty-string>, network_options?: list<non-empty-string>, capabilities?: list<non-empty-string>, tables?: list<non-empty-string>}
  * @phpstan-type Args array{consent?: array{option?: string, key?: string, constant?: string}, meta_types?: array<string, array{meta_type?: string, meta_tables?: list<non-empty-string>, cache_groups?: list<non-empty-string>}>, cleanup?: callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void}
  */
 final class Uninstaller {
@@ -132,7 +132,7 @@ final class Uninstaller {
 			if ( self::is_constant_true( $args['consent']['constant'] ) ) {
 				try {
 					if ( $uninstaller->run_cleanup( 'network' ) ) {
-						$uninstaller->delete_global_user_meta();
+						$uninstaller->delete_network_footprint();
 					}
 				} catch ( \Throwable $throwable ) {
 					$uninstaller->failures[] = "network: {$throwable->getMessage()}";
@@ -159,9 +159,9 @@ final class Uninstaller {
 	 *
 	 * @global  \wpdb $wpdb The WordPress database connection.
 	 *
-	 * @param   bool $global_user_meta Whether the pass also deletes the network-wide user meta, which a single site keeps as its own.
+	 * @param   bool $network_footprint Whether the pass also deletes the network options and network-wide user meta, which a single site keeps as its own.
 	 */
-	protected function uninstall_site( bool $global_user_meta ): void {
+	protected function uninstall_site( bool $network_footprint ): void {
 		global $wpdb;
 
 		$failed = \count( $this->failures );
@@ -307,8 +307,8 @@ final class Uninstaller {
 				$this->record_failure( "table $table", $wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $table ) ?? '' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A plugin's own table, which no WordPress API drops.
 			}
 
-			if ( $global_user_meta ) {
-				$this->delete_global_user_meta();
+			if ( $network_footprint ) {
+				$this->delete_network_footprint();
 			}
 
 			// The consent row goes last and only after a clean pass, so an interrupted or failed run still consents on its retry.
@@ -322,15 +322,20 @@ final class Uninstaller {
 	}
 
 	/**
-	 * Deletes the footprint's network-wide user meta, which a single site keeps as its own.
+	 * Deletes the footprint's network options and network-wide user meta, which a single site keeps as its own.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @global  \wpdb $wpdb The WordPress database connection.
 	 */
-	protected function delete_global_user_meta(): void {
+	protected function delete_network_footprint(): void {
 		global $wpdb;
+
+		foreach ( self::get_strings( $this->footprint['network_options'] ?? null ) as $option ) {
+			$wpdb->flush();
+			$this->record_failure( "network option $option", \delete_network_option( null, $option ) );
+		}
 
 		$this->delete_meta_keys( 'user', self::get_strings( $this->footprint['user_meta_global'] ?? null ) );
 		foreach ( self::get_strings( $this->footprint['user_meta_global_prefixes'] ?? null ) as $prefix ) {
