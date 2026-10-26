@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\Scheduling;
 
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
+use DeepWebSolutions\Framework\Shared\ValueObject\AbstractValueObject;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -14,7 +15,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
  * @since   2.0.0
  * @version 2.0.0
  */
-final readonly class ScheduledHook {
+final readonly class ScheduledHook extends AbstractValueObject {
 	// region MAGIC METHODS
 
 	/**

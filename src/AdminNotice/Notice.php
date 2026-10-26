@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\AdminNotice;
 
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
+use DeepWebSolutions\Framework\Shared\ValueObject\AbstractValueObject;
 
 \defined( 'ABSPATH' ) || exit;
 
@@ -16,7 +17,7 @@ use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
  *
  * @phpstan-type NoticeRow array{v: 1, id: string, message: string, type: value-of<NoticeType>, scope: value-of<NoticeScope>, persistent: bool, dismissible: bool, capability: string|null, screens: list<string>, expires_at: int|null, per_viewer: bool}
  */
-final readonly class Notice {
+final readonly class Notice extends AbstractValueObject {
 	// region FIELDS AND CONSTANTS
 
 	/**
