@@ -10,8 +10,8 @@
     "ahegyes/wp-framework-bootstrap": "^2.0",
     "ahegyes/wp-framework-shared": "^2.0",
     "psr/clock": "^1",
-    "psr/container": "^2",
-    "psr/log": "^3",
+    "psr/container": "^2.0.2",
+    "psr/log": "^3.0.2",
     "psr/simple-cache": "^3"
   },
   "autoload": {
