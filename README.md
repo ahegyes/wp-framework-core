@@ -29,7 +29,7 @@ The packages are not on Packagist, and Composer reads repositories only from the
 
 ## Prefixing
 
-WordPress loads every plugin into one PHP process, so each plugin ships the framework prefixed under its own namespace. Two plugins that ship the packages unprefixed fatal with "Cannot redeclare class …" once both load bootstrap's files, and their autoloaded classes resolve to whichever plugin's autoloader registered first, so one plugin silently runs the other's copy. WordPress, WooCommerce (`WC_*`, `wc_*`, `WC()`, `Automattic\WooCommerce\*`) and Action Scheduler (`as_*`, `ActionScheduler*`) symbols stay global, and `Psr\*` is prefixed with the framework, so the plugin's container and logger implement the same prefixed interfaces.
+WordPress loads every plugin into one PHP process, so each plugin ships the framework prefixed under its own namespace. Two plugins that ship the packages unprefixed fatal with "Cannot redeclare class …" once both load bootstrap's files, and their autoloaded classes resolve to one plugin's copy, chosen by the order the plugins load in, so the other plugin silently runs it. WordPress, WooCommerce (`WC_*`, `wc_*`, `WC()`, `Automattic\WooCommerce\*`) and Action Scheduler (`as_*`, `ActionScheduler*`) symbols stay global, and `Psr\*` is prefixed with the framework, so the plugin's container and logger implement the same prefixed interfaces.
 
 [wordpress-configs](https://github.com/ahegyes/wordpress-configs) prefixes the packages and the plugin's container with php-scoper into `vendor-prefixed/` after every development install, and a later `composer install --no-dev` keeps that output, so a build runs both, in that order. It also replaces the framework's text domain with the plugin's `extra.text-domain`, failing the build if any of the framework's survives. PHP-DI accepts `laravel/serializable-closure` releases that the scoper refuses, so with PHP-DI as the container the plugin also requires a newer one. The plugin adds to its `composer.json`:
 
@@ -111,7 +111,7 @@ function acme_pc_boot(): void {
 }
 ```
 
-One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site; the composition registers the scheduler and the migration runner, then boots the kernel, which builds each top-level component through the container and registers its hooks:
+One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site, rethrowing only in local and development environments; the composition registers the scheduler and the migration runner, then boots the kernel, which builds each top-level component through the container and registers its hooks:
 
 ```php
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\AdminNotice\AdminNotices;
