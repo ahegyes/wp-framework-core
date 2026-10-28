@@ -122,7 +122,6 @@ use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\PluginBoot;
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\PluginKernel;
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\Scheduling\Scheduler;
 use Acme\PersonaCore\Scoped\DI\ContainerBuilder;
-use Acme\PersonaCore\Scoped\Psr\Container\ContainerInterface as PsrContainerInterface;
 use Acme\PersonaCore\Scoped\Psr\Log\LoggerInterface as PsrLoggerInterface;
 
 // ...
@@ -165,7 +164,7 @@ final class Plugin {
 
 	protected function get_definitions( PsrLoggerInterface $logger ): array {
 		return array(
-			AdminNotices::class => static fn ( PsrContainerInterface $c ): AdminNotices => new AdminNotices( self::PREFIX, $logger ),
+			AdminNotices::class => static fn (): AdminNotices => new AdminNotices( self::PREFIX, $logger ),
 		);
 	}
 
