@@ -41,18 +41,17 @@ interface BackendInterface {
 	public function census( ScheduledHook $hook ): array;
 
 	/**
-	 * Adds an invocation of the hook that runs as soon as possible.
+	 * Adds an invocation of the hook that runs as soon as possible, unless the backend already holds one, which counts as added.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @param   ScheduledHook $hook     The hook to run.
 	 * @param   int           $priority The priority, lower first.
-	 * @param   bool          $unique   Whether a pending or running invocation of the hook stops the insert.
 	 *
 	 * @return  true|\WP_Error
 	 */
-	public function enqueue( ScheduledHook $hook, int $priority, bool $unique ): true|\WP_Error;
+	public function enqueue( ScheduledHook $hook, int $priority ): true|\WP_Error;
 
 	/**
 	 * Adds an invocation of the hook at the given time.

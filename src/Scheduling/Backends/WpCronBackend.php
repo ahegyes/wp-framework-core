@@ -100,7 +100,7 @@ final class WpCronBackend implements BackendInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function enqueue( ScheduledHook $hook, int $priority, bool $unique ): true|\WP_Error {
+	public function enqueue( ScheduledHook $hook, int $priority ): true|\WP_Error {
 		return self::to_result( wp_schedule_single_event( \time(), $hook->hook, $hook->args, true ) );
 	}
 

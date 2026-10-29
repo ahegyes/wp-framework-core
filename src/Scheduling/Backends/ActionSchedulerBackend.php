@@ -95,8 +95,8 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 * @version 2.0.0
 	 */
 	#[\Override]
-	public function enqueue( ScheduledHook $hook, int $priority, bool $unique ): true|\WP_Error {
-		return $this->confirm( as_enqueue_async_action( $hook->hook, $hook->args, $this->group, $unique, $priority ), $hook, $unique );
+	public function enqueue( ScheduledHook $hook, int $priority ): true|\WP_Error {
+		return $this->confirm( as_enqueue_async_action( $hook->hook, $hook->args, $this->group, true, $priority ), $hook, true );
 	}
 
 	/**

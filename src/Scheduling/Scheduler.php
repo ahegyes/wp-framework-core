@@ -101,7 +101,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 				return true;
 			}
 
-			return $this->get_writable_backend()->enqueue( $hook, $priority, true );
+			return $this->get_writable_backend()->enqueue( $hook, $priority );
 		} catch ( \Throwable $exception ) {
 			return self::get_failure( $exception );
 		}
