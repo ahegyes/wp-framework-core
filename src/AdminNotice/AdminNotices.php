@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Keeps a plugin's admin notices, shows them in the admin, the post editor included, and lets users dismiss them through a REST endpoint.
  *
- * The prefix names the plugin's storage keys, hooks and REST namespace. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta.
+ * The prefix names the plugin's storage keys, hooks and REST namespace. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta, keyed by network.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -231,7 +231,7 @@ final class AdminNotices implements ComponentInterface {
 						continue;
 					}
 
-					$state = $notice->is_shared() ? null : ( $this->get_hidden( $scope, $user_id )[ "$scope->value:$notice->id" ]['state'] ?? null );
+					$state = $notice->is_shared() ? null : ( $this->get_hidden( $scope, $user_id )[ self::get_hidden_key( $scope, $notice->id ) ]['state'] ?? null );
 					if ( 'dismissed' === $state || ( 'delivered' === $state && ! $notice->persistent ) ) {
 						continue;
 					}
@@ -688,7 +688,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the user's dismissals and showings of the scope's notices, keyed by scope and id: per site, or network-wide for network notices.
+	 * Returns the user's dismissals and showings of the scope's notices, keyed as get_hidden_key() keys them: per site, or installation-wide for network notices.
 	 *
 	 * The two keys differ in name, because get_user_option() falls back to a network-wide key of the same name. An invalid entry is left out, and the next write drops it.
 	 *
@@ -717,6 +717,21 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
+	 * Returns the key of a notice's entry among a user's dismissals and showings, which names a network notice's network, because user meta is shared by every network of an installation.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope The notice's scope.
+	 * @param   string      $id    The notice's id.
+	 *
+	 * @return  string
+	 */
+	protected static function get_hidden_key( NoticeScope $scope, string $id ): string {
+		return NoticeScope::Network === $scope ? 'network:' . get_current_network_id() . ":$id" : "$scope->value:$id";
+	}
+
+	/**
 	 * Records the user's dismissal or showing of a notice, replacing an earlier one, and returns whether it changed.
 	 *
 	 * @since   2.0.0
@@ -731,11 +746,12 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	protected function hide( NoticeScope $scope, string $id, int $user_id, string $state ): bool {
 		$hidden = $this->get_hidden( $scope, $user_id );
-		if ( ( $hidden[ "$scope->value:$id" ]['state'] ?? null ) === $state ) {
+		$key    = self::get_hidden_key( $scope, $id );
+		if ( ( $hidden[ $key ]['state'] ?? null ) === $state ) {
 			return false;
 		}
 
-		$hidden[ "$scope->value:$id" ] = array(
+		$hidden[ $key ] = array(
 			'state' => $state,
 			'at'    => \time(),
 		);
