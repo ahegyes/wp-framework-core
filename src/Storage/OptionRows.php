@@ -10,7 +10,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 /**
  * Reads and writes options as rows of the current site's options table, with writes that are atomic or conditional on the exact row read.
  *
- * The options API decides each write from a possibly cached read, so it cannot write conditionally. Conditional writes compare bytes, not the column's case-insensitive collation, and every write that changes a row clears the option's cache entries, so get_option() reads it.
+ * The options API decides each write from a possibly cached read, so it cannot write conditionally. Conditional writes compare bytes, not the column's case-insensitive collation, and every write that changes a row clears the option's cache entries, so get_option() reads it. Rows are written without autoload, so a replace also stops an autoloaded option from autoloading.
  *
  * @since   2.0.0
  * @version 2.0.0
