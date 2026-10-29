@@ -169,7 +169,14 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	public function run(): void {
 		$target = \count( $this->steps );
-		if ( self::get_revision( $this->option ) === $target ) {
+		$cached = self::get_revision( $this->option );
+		if ( $cached === $target ) {
+			return;
+		}
+
+		// Outside the hook a pending batched step only schedules the hook, so no lock is taken; a stale revision only leaves plain steps to the hook, which runs them too.
+		if ( ! doing_action( $this->get_hook() ) && ( $this->steps[ $cached ] ?? null ) instanceof BatchedMigrationStepInterface ) {
+			$this->schedule_continuation();
 			return;
 		}
 
@@ -242,19 +249,7 @@ final class MigrationRunner implements ComponentInterface {
 				$spent        = ! \is_null( $this->deadline ) && ( $this->get_time() >= $this->deadline || ( 0 < $memory_limit && \memory_get_usage( true ) > 0.9 * $memory_limit ) );
 				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! doing_action( $this->get_hook() ) ) ) {
 					$this->unlock(); // The lock goes first, so that the continuation can take it.
-
-					// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due a second later, and the queue run dispatching it ends instead of claiming it again at once.
-					$hook      = new ScheduledHook( $this->get_hook() );
-					$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() + 1 ) : $this->scheduler->enqueue( $hook );
-					if ( true !== $scheduled ) {
-						$this->logger->warning(
-							'Could not schedule the next data migration run: {error}',
-							array(
-								'error'     => $scheduled->get_error_message(),
-								'exception' => $scheduled->get_error_data(),
-							)
-						);
-					}
+					$this->schedule_continuation();
 					return;
 				}
 
@@ -431,6 +426,30 @@ final class MigrationRunner implements ComponentInterface {
 				array(
 					'error'     => $exception->getMessage(),
 					'exception' => $exception,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Schedules the runner's next invocation, and logs a scheduler failure, which a later request retries.
+	 *
+	 * Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due a second later, and the queue run dispatching it ends instead of claiming it again at once.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @return  void
+	 */
+	protected function schedule_continuation(): void {
+		$hook      = new ScheduledHook( $this->get_hook() );
+		$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() + 1 ) : $this->scheduler->enqueue( $hook );
+		if ( true !== $scheduled ) {
+			$this->logger->warning(
+				'Could not schedule the next data migration run: {error}',
+				array(
+					'error'     => $scheduled->get_error_message(),
+					'exception' => $scheduled->get_error_data(),
 				)
 			);
 		}
