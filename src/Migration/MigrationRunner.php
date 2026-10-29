@@ -243,9 +243,9 @@ final class MigrationRunner implements ComponentInterface {
 				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! doing_action( $this->get_hook() ) ) ) {
 					$this->unlock(); // The lock goes first, so that the continuation can take it.
 
-					// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due now.
+					// Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due a second later, and the queue run dispatching it ends instead of claiming it again at once.
 					$hook      = new ScheduledHook( $this->get_hook() );
-					$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() ) : $this->scheduler->enqueue( $hook );
+					$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() + 1 ) : $this->scheduler->enqueue( $hook );
 					if ( true !== $scheduled ) {
 						$this->logger->warning(
 							'Could not schedule the next data migration run: {error}',
