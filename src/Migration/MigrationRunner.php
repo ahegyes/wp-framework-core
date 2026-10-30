@@ -63,6 +63,16 @@ final class MigrationRunner implements ComponentInterface {
 	protected Lock $lock;
 
 	/**
+	 * The hook that runs the steps in the background, built once so that an option too long to name it fails at construction.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     ScheduledHook
+	 */
+	protected ScheduledHook $scheduled_hook;
+
+	/**
 	 * The token that names this runner's hold on the lock.
 	 *
 	 * @since   2.0.0
@@ -100,7 +110,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1, that a request spends on steps and batches before it pauses. Default is 20.
 	 * @param   PsrClockInterface|null                                 $clock            Optional. The clock. Default is the system clock.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the option name cannot name the lock.
+	 * @throws  InvalidArgumentException Thrown when the option name cannot name the lock or the scheduled hook.
 	 */
 	public function __construct(
 		protected string $plugin_file,
@@ -111,10 +121,11 @@ final class MigrationRunner implements ComponentInterface {
 		protected int $batch_time_limit = 20,
 		?PsrClockInterface $clock = null
 	) {
-		$this->clock  = $clock ?? new SystemClock();
-		$this->lock   = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
-		$this->owner  = wp_generate_uuid4();
-		$this->logger = new GuardedLogger( $logger, $option );
+		$this->clock          = $clock ?? new SystemClock();
+		$this->lock           = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
+		$this->scheduled_hook = new ScheduledHook( $this->get_hook() );
+		$this->owner          = wp_generate_uuid4();
+		$this->logger         = new GuardedLogger( $logger, $option );
 	}
 
 	// endregion
@@ -442,8 +453,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  void
 	 */
 	protected function schedule_continuation(): void {
-		$hook      = new ScheduledHook( $this->get_hook() );
-		$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $hook, \time() + 1 ) : $this->scheduler->enqueue( $hook );
+		$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $this->scheduled_hook, \time() + 1 ) : $this->scheduler->enqueue( $this->scheduled_hook );
 		if ( true !== $scheduled ) {
 			$this->logger->warning(
 				'Could not schedule the next data migration run: {error}',
