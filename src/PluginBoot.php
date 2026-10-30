@@ -108,7 +108,7 @@ final class PluginBoot {
 			 *
 			 * @param   \Throwable $exception The failure that stopped the composition.
 			 */
-			do_action( "{$this->prefix}_initialization_failure", $exception );
+			do_action( "{$this->prefix}/boot/failed", $exception );
 			if ( self::is_development_environment() ) {
 				throw $exception;
 			}
@@ -125,7 +125,7 @@ final class PluginBoot {
 			 * @since   2.0.0
 			 * @version 2.0.0
 			 */
-			do_action( "{$this->prefix}_initialization_blocked" );
+			do_action( "{$this->prefix}/boot/blocked" );
 			return;
 		}
 
@@ -137,7 +137,7 @@ final class PluginBoot {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 */
-		do_action( "{$this->prefix}_initialized" );
+		do_action( "{$this->prefix}/boot/succeeded" );
 	}
 
 	/**

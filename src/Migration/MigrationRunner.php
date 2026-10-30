@@ -555,7 +555,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  non-empty-string
 	 */
 	protected function get_hook(): string {
-		return "{$this->option}_run";
+		return "{$this->option}/migration/run";
 	}
 
 	// endregion

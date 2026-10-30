@@ -242,11 +242,11 @@ final class AdminNotices implements ComponentInterface {
 					 * @since   2.0.0
 					 * @version 2.0.0
 					 *
-					 * @param   bool   $visible Whether the notice shows; only true shows it.
-					 * @param   string $id      The notice's id.
-					 * @param   string $scope   The notice's scope.
+					 * @param   bool   $show  Whether the notice shows. Only true shows it.
+					 * @param   string $id    The notice's id.
+					 * @param   string $scope The notice's scope.
 					 */
-					if ( true === apply_filters( "{$this->prefix}_notice_visible", true, $notice->id, $scope->value ) ) {
+					if ( true === apply_filters( "{$this->prefix}/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
 						$selected[] = $notice;
 					}
 				}
@@ -540,7 +540,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			do_action( "{$this->prefix}_notice_dismissed", $id, $scope->value, $user_id, $owner );
+			do_action( "{$this->prefix}/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -785,7 +785,7 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $id      The notice's id.
 		 * @param   string $scope   The notice's scope.
 		 */
-		$message = apply_filters( "{$this->prefix}_notice_message", $notice->message, $notice->id, $notice->scope->value );
+		$message = apply_filters( "{$this->prefix}/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
 		return \is_string( $message ) ? $message : $notice->message;
 	}
 
