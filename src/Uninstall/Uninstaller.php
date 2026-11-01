@@ -217,7 +217,7 @@ final class Uninstaller {
 
 			$options = self::get_strings( $this->footprint['options'] ?? null );
 			foreach ( self::get_strings( $this->footprint['option_prefixes'] ?? null ) as $prefix ) {
-				$options = \array_merge( $options, $this->get_names_by_prefix_outside_table_prefix( $wpdb->options, 'option_name', $prefix ) );
+				$options = \array_merge( $options, $this->get_names_by_prefix( $wpdb->options, 'option_name', $prefix ) );
 			}
 			foreach ( \array_diff( \array_unique( $options ), array( $this->args['consent']['option'] ) ) as $option ) {
 				$wpdb->flush();
@@ -345,7 +345,7 @@ final class Uninstaller {
 
 		$this->delete_meta_keys( 'user', self::get_strings( $this->footprint['user_meta_global'] ?? null ) );
 		foreach ( self::get_strings( $this->footprint['user_meta_global_prefixes'] ?? null ) as $prefix ) {
-			$this->delete_meta_keys( 'user', $this->get_names_by_prefix_outside_table_prefix( $wpdb->usermeta, 'meta_key', $prefix ) );
+			$this->delete_meta_keys( 'user', $this->get_names_by_prefix( $wpdb->usermeta, 'meta_key', $prefix ) );
 		}
 	}
 
@@ -469,34 +469,6 @@ final class Uninstaller {
 
 		// The collation also matches names that differ from the prefix in letter case or accents, and would fold such twins into one distinct name, hence the bytes.
 		return \array_values( \array_filter( $names, static fn ( mixed $name ): bool => \is_string( $name ) && \str_starts_with( $name, $prefix ) ) );
-	}
-
-	/**
-	 * Returns the column's distinct values that start with the prefix, leaving out those that start with the table prefix when the prefix heads it.
-	 *
-	 * WordPress names each user's roles on a site and the site's role definitions after the table prefix, so a sweep of names without a site prefix would delete them where the table prefix starts with the plugin's.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @global  \wpdb $wpdb The WordPress database connection.
-	 *
-	 * @param   string $table  The table.
-	 * @param   string $column The column.
-	 * @param   string $prefix The prefix, matched byte for byte.
-	 *
-	 * @return  list<string>
-	 */
-	protected function get_names_by_prefix_outside_table_prefix( string $table, string $column, string $prefix ): array {
-		global $wpdb;
-
-		$names        = $this->get_names_by_prefix( $table, $column, $prefix );
-		$table_prefix = $wpdb->base_prefix;
-		if ( ! \str_starts_with( $table_prefix, $prefix ) ) {
-			return $names;
-		}
-
-		return \array_values( \array_filter( $names, static fn ( string $name ): bool => ! \str_starts_with( $name, $table_prefix ) ) );
 	}
 
 	/**
