@@ -44,6 +44,16 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	protected WpCronBackend $wp_cron;
 
+	/**
+	 * The id of the site the scheduler was built on, the only site it schedules for.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     int
+	 */
+	protected int $blog_id;
+
 	// endregion
 
 	// region MAGIC METHODS
@@ -65,6 +75,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 
 		$this->wp_cron  = new WpCronBackend( $group );
 		$this->backends = array( new ActionSchedulerBackend( $group ), $this->wp_cron );
+		$this->blog_id  = get_current_blog_id();
 	}
 
 	// endregion
@@ -251,8 +262,8 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 		$error = match ( true ) {
 			0 === did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() )
 				=> new \WP_Error( 'scheduler_not_ready', 'Scheduling waits until init has fired and Action Scheduler has initialized.' ),
-			// Readiness is measured for the site that loaded the plugins, while a switched site may run other plugins or lack Action Scheduler's tables.
-			is_multisite() && ms_is_switched()
+			// Readiness is measured for the site the scheduler was built on, while another site may run other plugins or lack Action Scheduler's tables.
+			get_current_blog_id() !== $this->blog_id
 				=> new \WP_Error( 'scheduler_switched', 'Scheduling is not supported while switched to another site.' ),
 			default => true,
 		};

@@ -63,7 +63,8 @@ final class ActionSchedulerBackend implements BackendInterface {
 		}
 
 		if ( 0 === did_action( 'action_scheduler_init' ) ) {
-			return BackendState::Initializing;
+			// Every version from 3.5.5 fires the hook during init, so one that has not by then is older.
+			return 0 < did_action( 'init' ) && ! doing_action( 'init' ) ? BackendState::Unsupported : BackendState::Initializing;
 		}
 
 		$version = \ActionScheduler_Versions::instance()->latest_version();
