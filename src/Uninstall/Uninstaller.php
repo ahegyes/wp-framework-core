@@ -48,15 +48,19 @@ final class Uninstaller {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @phpstan-param array<string, list<string>> $footprint
+	 * @phpstan-param array{meta: array<string, list<string>>, meta_prefixes: array<string, list<string>>} $meta_footprint
 	 * @phpstan-param array{consent: array{option: string, key: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<string>, cache_groups: list<string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
 	 *
-	 * @param   string               $plugin_file The path to the plugin's entry file.
-	 * @param   array<string, mixed> $footprint   The plugin's stored data by kind.
-	 * @param   array<string, mixed> $args        The consent, the meta types by name and the cleanup.
+	 * @param   string               $plugin_file    The path to the plugin's entry file.
+	 * @param   array<string, mixed> $footprint      The names and prefixes of every kind but the meta kinds, by kind.
+	 * @param   array<string, mixed> $meta_footprint The meta keys and meta prefixes, by meta type name.
+	 * @param   array<string, mixed> $args           The consent, the meta types by name and the cleanup.
 	 */
 	protected function __construct(
 		protected readonly string $plugin_file,
 		protected readonly array $footprint,
+		protected readonly array $meta_footprint,
 		protected readonly array $args
 	) {}
 
@@ -114,7 +118,24 @@ final class Uninstaller {
 		}
 		$args['meta_types'] = $meta_types;
 
-		$uninstaller = new self( $plugin_file, $footprint, $args );
+		$uninstaller = new self(
+			$plugin_file,
+			\array_map(
+				self::get_strings( ... ),
+				\array_diff_key(
+					$footprint,
+					array(
+						'meta'          => true,
+						'meta_prefixes' => true,
+					)
+				)
+			),
+			array(
+				'meta'          => self::get_meta_strings( $footprint['meta'] ?? null, $meta_types ),
+				'meta_prefixes' => self::get_meta_strings( $footprint['meta_prefixes'] ?? null, $meta_types ),
+			),
+			$args
+		);
 		if ( ! is_multisite() ) {
 			$uninstaller->uninstall_site( true );
 		} else {
@@ -176,7 +197,7 @@ final class Uninstaller {
 
 		$failed = \count( $this->failures );
 		try {
-			foreach ( self::get_strings( $this->footprint['cron_hooks'] ?? null ) as $hook ) {
+			foreach ( $this->footprint['cron_hooks'] ?? array() as $hook ) {
 				$wpdb->flush();
 				try {
 					$result = wp_unschedule_hook( $hook, true );
@@ -188,10 +209,10 @@ final class Uninstaller {
 
 			if ( \function_exists( 'as_unschedule_all_actions' ) ) { // Action Scheduler is loaded only while a plugin that bundles it is active.
 				$jobs = array();
-				foreach ( self::get_strings( $this->footprint['as_hooks'] ?? null ) as $hook ) {
+				foreach ( $this->footprint['as_hooks'] ?? array() as $hook ) {
 					$jobs[ "Action Scheduler hook $hook" ] = array( $hook );
 				}
-				foreach ( self::get_strings( $this->footprint['as_groups'] ?? null ) as $group ) {
+				foreach ( $this->footprint['as_groups'] ?? array() as $group ) {
 					$jobs[ "Action Scheduler group $group" ] = array( '', array(), $group );
 				}
 
@@ -225,8 +246,8 @@ final class Uninstaller {
 				return;
 			}
 
-			$options = self::get_strings( $this->footprint['options'] ?? null );
-			foreach ( self::get_strings( $this->footprint['option_prefixes'] ?? null ) as $prefix ) {
+			$options = $this->footprint['options'] ?? array();
+			foreach ( $this->footprint['option_prefixes'] ?? array() as $prefix ) {
 				$options = \array_merge( $options, $this->get_names_by_prefix( $wpdb->options, 'option_name', $prefix ) );
 			}
 			foreach ( \array_diff( \array_unique( $options ), array( $this->args['consent']['option'] ) ) as $option ) {
@@ -234,12 +255,12 @@ final class Uninstaller {
 				$this->record_failure( "option $option", delete_option( $option ) );
 			}
 
-			foreach ( self::get_strings( $this->footprint['transients'] ?? null ) as $transient ) {
+			foreach ( $this->footprint['transients'] ?? array() as $transient ) {
 				$wpdb->flush();
 				$this->record_failure( "transient $transient", delete_transient( $transient ) );
 			}
 
-			foreach ( self::get_strings( $this->footprint['post_types'] ?? null ) as $post_type ) {
+			foreach ( $this->footprint['post_types'] ?? array() as $post_type ) {
 				// A relationship carries no object type, so only post taxonomies are read, which leaves a link's or a user's terms under the same id alone.
 				$taxonomies = get_object_taxonomies( array( $post_type, ...get_post_types() ) );
 				foreach ( $this->get_matching_ids( $wpdb->posts, 'ID', 'post_type', $post_type ) as $post_id ) {
@@ -251,15 +272,15 @@ final class Uninstaller {
 				}
 			}
 
-			foreach ( self::get_strings( $this->footprint['comment_types'] ?? null ) as $comment_type ) {
+			foreach ( $this->footprint['comment_types'] ?? array() as $comment_type ) {
 				foreach ( $this->get_matching_ids( $wpdb->comments, 'comment_ID', 'comment_type', $comment_type ) as $comment_id ) {
 					$wpdb->flush();
 					$this->record_failure( "comment $comment_id of type $comment_type", self::confirm_deleted( wp_delete_comment( $comment_id, true ) ) );
 				}
 			}
 
-			$meta_keys     = \array_intersect_key( \is_array( $this->footprint['meta'] ?? null ) ? $this->footprint['meta'] : array(), $this->args['meta_types'] );
-			$meta_prefixes = \array_intersect_key( \is_array( $this->footprint['meta_prefixes'] ?? null ) ? $this->footprint['meta_prefixes'] : array(), $this->args['meta_types'] );
+			$meta_keys     = $this->meta_footprint['meta'];
+			$meta_prefixes = $this->meta_footprint['meta_prefixes'];
 			foreach ( \array_keys( $meta_keys + $meta_prefixes ) as $name ) {
 				$meta_type = $this->args['meta_types'][ $name ];
 
@@ -272,8 +293,8 @@ final class Uninstaller {
 					}
 				}
 
-				$keys = self::get_strings( $meta_keys[ $name ] ?? null );
-				foreach ( self::get_strings( $meta_prefixes[ $name ] ?? null ) as $prefix ) {
+				$keys = $meta_keys[ $name ] ?? array();
+				foreach ( $meta_prefixes[ $name ] ?? array() as $prefix ) {
 					foreach ( '' === $meta_type['meta_type'] ? $tables : array( (string) _get_meta_table( $meta_type['meta_type'] ), ...$tables ) as $table ) {
 						$keys = \array_merge( $keys, $this->get_names_by_prefix( $table, 'meta_key', $prefix ) );
 					}
@@ -299,12 +320,12 @@ final class Uninstaller {
 			}
 
 			$blog_prefix = $wpdb->get_blog_prefix(); // Site user meta keys carry the site's table prefix, as update_user_option() writes them.
-			$this->delete_meta_keys( 'user', \array_map( static fn ( string $key ): string => $blog_prefix . $key, self::get_strings( $this->footprint['user_meta_site'] ?? null ) ) );
-			foreach ( self::get_strings( $this->footprint['user_meta_site_prefixes'] ?? null ) as $prefix ) {
+			$this->delete_meta_keys( 'user', \array_map( static fn ( string $key ): string => $blog_prefix . $key, $this->footprint['user_meta_site'] ?? array() ) );
+			foreach ( $this->footprint['user_meta_site_prefixes'] ?? array() as $prefix ) {
 				$this->delete_meta_keys( 'user', $this->get_names_by_prefix( $wpdb->usermeta, 'meta_key', $blog_prefix . $prefix ) );
 			}
 
-			foreach ( self::get_strings( $this->footprint['capabilities'] ?? null ) as $capability ) {
+			foreach ( $this->footprint['capabilities'] ?? array() as $capability ) {
 				foreach ( wp_roles()->role_objects as $role ) {
 					$wpdb->flush();
 					$role->remove_cap( $capability );
@@ -312,7 +333,7 @@ final class Uninstaller {
 				}
 			}
 
-			foreach ( self::get_strings( $this->footprint['tables'] ?? null ) as $table ) {
+			foreach ( $this->footprint['tables'] ?? array() as $table ) {
 				$wpdb->flush();
 				$this->record_failure( "table $table", $wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $table ) ?? '' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A plugin's own table, which no WordPress API drops.
 			}
@@ -344,7 +365,7 @@ final class Uninstaller {
 	protected function delete_network_footprint(): void {
 		global $wpdb;
 
-		$options = self::get_strings( $this->footprint['network_options'] ?? null );
+		$options = $this->footprint['network_options'] ?? array();
 		if ( is_multisite() ) {
 			// WordPress's delete_network_option() matches keys under the column's collation, which would also delete another plugin's key that differs only in letter case.
 			$this->delete_meta_keys( 'site', $options );
@@ -358,8 +379,8 @@ final class Uninstaller {
 			}
 		}
 
-		$this->delete_meta_keys( 'user', self::get_strings( $this->footprint['user_meta_global'] ?? null ) );
-		foreach ( self::get_strings( $this->footprint['user_meta_global_prefixes'] ?? null ) as $prefix ) {
+		$this->delete_meta_keys( 'user', $this->footprint['user_meta_global'] ?? array() );
+		foreach ( $this->footprint['user_meta_global_prefixes'] ?? array() as $prefix ) {
 			$this->delete_meta_keys( 'user', $this->get_names_by_prefix( $wpdb->usermeta, 'meta_key', $prefix ) );
 		}
 	}
@@ -570,6 +591,21 @@ final class Uninstaller {
 	 */
 	protected static function get_strings( mixed $value ): array {
 		return \array_values( \array_filter( \is_array( $value ) ? $value : array(), static fn ( mixed $item ): bool => \is_string( $item ) && '' !== $item && '0' !== $item ) );
+	}
+
+	/**
+	 * Returns a meta kind's strings for each of the meta types the run knows, or none when it is not an array.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   mixed                $value      The meta kind's entries, by meta type name.
+	 * @param   array<string, mixed> $meta_types The run's meta types, by name.
+	 *
+	 * @return  array<string, list<string>>
+	 */
+	protected static function get_meta_strings( mixed $value, array $meta_types ): array {
+		return \array_map( self::get_strings( ... ), \array_intersect_key( \is_array( $value ) ? $value : array(), $meta_types ) );
 	}
 
 	// endregion
