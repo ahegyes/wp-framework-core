@@ -19,16 +19,6 @@ final class PluginKernel {
 	// region FIELDS AND CONSTANTS
 
 	/**
-	 * The classes constructed, in walk order, whether registration reached them.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     list<class-string<ComponentInterface>>
-	 */
-	protected(set) array $resolved = array();
-
-	/**
 	 * The classes whose gate returned false.
 	 *
 	 * @since   2.0.0
@@ -125,8 +115,6 @@ final class PluginKernel {
 			if ( ! $component instanceof $class ) {
 				throw new LogicException( "The container entry '$class' has type '" . \get_debug_type( $component ) . "', not that class." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 			}
-
-			$this->resolved[] = $class;
 
 			$components[] = $component;
 			if ( \is_a( $class, CompositeComponentInterface::class, true ) ) {
