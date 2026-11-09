@@ -72,9 +72,9 @@ abstract class AbstractLogger extends PsrAbstractLogger {
 	}
 
 	/**
-	 * Replaces each {key} placeholder in the message with its scalar, null or Stringable context value.
+	 * Replaces each {key} placeholder in the message with its scalar, null or Stringable context value, with its line breaks escaped.
 	 *
-	 * Only the values the message uses are cast, and a placeholder whose value throws while casting stays as it is, because PSR-3 forbids a context value from making logging fail.
+	 * Only the values the message uses are cast, and a placeholder whose value throws while casting stays as it is, because PSR-3 forbids a context value from making logging fail. Line breaks are escaped so that a value cannot start a forged record.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -93,7 +93,7 @@ abstract class AbstractLogger extends PsrAbstractLogger {
 			}
 
 			try {
-				$replacements[ $placeholder ] = (string) $value;
+				$replacements[ $placeholder ] = \str_replace( array( "\r", "\n" ), array( '\r', '\n' ), (string) $value );
 			} catch ( \Throwable ) {
 				continue;
 			}
