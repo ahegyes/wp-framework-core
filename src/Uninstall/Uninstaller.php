@@ -19,6 +19,16 @@ final class Uninstaller {
 	// region FIELDS AND CONSTANTS
 
 	/**
+	 * The number of row ids one read takes, so that a key on very many rows clears with flat memory.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     int
+	 */
+	protected const int ID_PAGE_SIZE = 1000;
+
+	/**
 	 * The failures of the run so far.
 	 *
 	 * @since   2.0.0
@@ -230,9 +240,14 @@ final class Uninstaller {
 			}
 
 			foreach ( self::get_strings( $this->footprint['post_types'] ?? null ) as $post_type ) {
+				// A relationship carries no object type, so only post taxonomies are read, which leaves a link's or a user's terms under the same id alone.
+				$taxonomies = get_object_taxonomies( array( $post_type, ...get_post_types() ) );
 				foreach ( $this->get_matching_ids( $wpdb->posts, 'ID', 'post_type', $post_type ) as $post_id ) {
 					$wpdb->flush();
-					$this->record_failure( "post $post_id of type $post_type", self::confirm_deleted( wp_delete_post( $post_id, true ) ) );
+					// WordPress removes only the terms of the taxonomies registered for the post's type, which its inactive plugin registered, so the rest go once the post is gone.
+					if ( $this->record_failure( "post $post_id of type $post_type", self::confirm_deleted( wp_delete_post( $post_id, true ) ) ) ) {
+						wp_delete_object_term_relationships( $post_id, $taxonomies );
+					}
 				}
 			}
 
@@ -472,7 +487,9 @@ final class Uninstaller {
 	}
 
 	/**
-	 * Returns the ids of the rows whose column holds exactly the value, and records a failed read.
+	 * Returns the ids of the rows whose column holds exactly the value, read a page at a time after the last id read, and records a failed read.
+	 *
+	 * The caller deletes each page's rows before the next page is read, so memory stays flat however many rows match.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -484,26 +501,31 @@ final class Uninstaller {
 	 * @param   string $column    The column to match.
 	 * @param   string $value     The value, matched byte for byte.
 	 *
-	 * @return  list<int>
+	 * @return  \Generator<int, int>
 	 */
-	protected function get_matching_ids( string $table, string $id_column, string $column, string $value ): array {
+	protected function get_matching_ids( string $table, string $id_column, string $column, string $value ): \Generator {
 		global $wpdb;
 
-		$wpdb->flush();
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT %i AS id, %i AS value FROM %i WHERE %i = %s', $id_column, $column, $table, $column, $value ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Reads every row, trashed posts and auto-drafts included.
-		if ( ! $this->record_failure( "the $value rows of $table", $rows ) ) {
-			return array();
-		}
-
-		$ids = array();
-		foreach ( (array) $rows as $row ) {
-			// The column's collation also matches values that differ in letter case or accents.
-			if ( \is_array( $row ) && ( $row['value'] ?? null ) === $value && \is_numeric( $row['id'] ?? null ) ) {
-				$ids[] = (int) $row['id'];
+		$last = 0;
+		do {
+			$wpdb->flush();
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT %i AS id, %i AS value FROM %i WHERE %i = %s AND %i > %d ORDER BY %i LIMIT %d', $id_column, $column, $table, $column, $value, $id_column, $last, $id_column, self::ID_PAGE_SIZE ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Reads every row, trashed posts and auto-drafts included.
+			if ( ! $this->record_failure( "the $value rows of $table", $rows ) ) {
+				return;
 			}
-		}
 
-		return $ids;
+			$rows = (array) $rows;
+			$full = self::ID_PAGE_SIZE === \count( $rows );
+			foreach ( $rows as $row ) {
+				if ( \is_array( $row ) && \is_numeric( $row['id'] ?? null ) ) {
+					$last = (int) $row['id'];
+					// The column's collation also matches values that differ in letter case or accents.
+					if ( ( $row['value'] ?? null ) === $value ) {
+						yield $last;
+					}
+				}
+			}
+		} while ( $full );
 	}
 
 	/**
