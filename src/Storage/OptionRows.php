@@ -95,6 +95,7 @@ final class OptionRows {
 		global $wpdb;
 
 		$raw = self::serialize( $name, $value );
+		self::check_name( $name );
 
 		$inserted = self::write( $wpdb->prepare( 'INSERT IGNORE INTO %i (option_name, option_value, autoload) VALUES (%s, %s, %s)', $wpdb->options, $name, $raw, 'off' ) ?? '', "Could not insert option '$name'" );
 		if ( 0 === $inserted ) {
@@ -116,7 +117,7 @@ final class OptionRows {
 	 * @param   OptionRow $observed The row as it was read.
 	 * @param   mixed     $value    The new value: a scalar, null, or an array of them, stored other than the observed one.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the value is invalid or would be stored as the observed one, or the row's name is invalid.
+	 * @throws  InvalidArgumentException Thrown when the value is invalid or would be stored as the observed one.
 	 * @throws  RuntimeException         Thrown when the write fails.
 	 *
 	 * @return  OptionRow|null
@@ -198,7 +199,7 @@ final class OptionRows {
 	 * @param   string $name  The option name.
 	 * @param   mixed  $value The value.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the name is invalid or the value holds anything but scalars, null and arrays.
+	 * @throws  InvalidArgumentException Thrown when the value holds anything but scalars, null and arrays.
 	 *
 	 * @return  string
 	 */
@@ -206,8 +207,6 @@ final class OptionRows {
 		if ( ! StoredData::is_storable_data( $value ) ) {
 			throw new InvalidArgumentException( "The value of option '$name' holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
-
-		self::check_name( $name );
 
 		$raw = maybe_serialize( $value );
 		return \is_scalar( $raw ) ? (string) $raw : '';

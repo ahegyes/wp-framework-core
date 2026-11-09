@@ -62,7 +62,7 @@ final class CacheEntries {
 
 		if ( ! \is_string( $key ) || '' === $key || false !== \strpbrk( $key, self::RESERVED_CHARACTERS ) ) {
 			$shown = \is_string( $key ) ? $key : \get_debug_type( $key );
-			throw new InvalidCacheKeyException( "Cache key '$shown' is empty, not a string or holds one of {}()/\\@:." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new InvalidCacheKeyException( "Cache key '$shown' is empty, not a string or holds one of " . self::RESERVED_CHARACTERS . '.' ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		return $key;

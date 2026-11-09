@@ -321,7 +321,7 @@ final class AdminNotices implements ComponentInterface {
 				array(
 					'type'        => $notice->type->value,
 					'dismissible' => $notice->dismissible,
-					'id'          => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
+					'id'          => $this->get_dom_id( $notice ),
 					'attributes'  => $attributes,
 				)
 			);
@@ -390,6 +390,7 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
+		$handle   = "{$this->prefix}-notice-delivery";
 		$settings = wp_json_encode(
 			array(
 				'prefix'  => $this->prefix,
@@ -398,9 +399,9 @@ final class AdminNotices implements ComponentInterface {
 			)
 		);
 
-		wp_register_script( "{$this->prefix}-notice-delivery", false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		wp_register_script( $handle, false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
 		wp_add_inline_script(
-			"{$this->prefix}-notice-delivery",
+			$handle,
 			<<<'JS'
 			( function ( settings ) {
 				function deliver() {
@@ -428,7 +429,7 @@ final class AdminNotices implements ComponentInterface {
 			} )
 			JS . '( ' . $settings . ' );'
 		);
-		wp_enqueue_script( "{$this->prefix}-notice-delivery" );
+		wp_enqueue_script( $handle );
 	}
 
 	/**
@@ -446,6 +447,7 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
+		$handle   = "{$this->prefix}-notice-dismissal";
 		$settings = wp_json_encode(
 			array(
 				'prefix' => $this->prefix,
@@ -453,9 +455,9 @@ final class AdminNotices implements ComponentInterface {
 			)
 		);
 
-		wp_register_script( "{$this->prefix}-notice-dismissal", false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		wp_register_script( $handle, false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
 		wp_add_inline_script(
-			"{$this->prefix}-notice-dismissal",
+			$handle,
 			<<<'JS'
 			( function ( settings ) {
 				document.addEventListener( 'click', function ( event ) {
@@ -480,7 +482,7 @@ final class AdminNotices implements ComponentInterface {
 			} )
 			JS . '( ' . $settings . ' );'
 		);
-		wp_enqueue_script( "{$this->prefix}-notice-dismissal" );
+		wp_enqueue_script( $handle );
 	}
 
 	/**
@@ -558,7 +560,7 @@ final class AdminNotices implements ComponentInterface {
 		$delivered = array();
 		foreach ( $this->select( true ) as $notice ) {
 			$delivered[] = array(
-				'id'            => "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}",
+				'id'            => $this->get_dom_id( $notice ),
 				'status'        => $notice->type->value,
 				'content'       => wp_kses_post( $this->get_message( $notice ) ),
 				'isDismissible' => $notice->dismissible,
@@ -810,6 +812,20 @@ final class AdminNotices implements ComponentInterface {
 				'exception' => $exception,
 			)
 		);
+	}
+
+	/**
+	 * Returns the id of the notice's element, which the classic screens and the block editor share.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   Notice $notice The notice.
+	 *
+	 * @return  string
+	 */
+	protected function get_dom_id( Notice $notice ): string {
+		return "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}";
 	}
 
 	/**

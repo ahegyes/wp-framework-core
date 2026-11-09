@@ -234,8 +234,14 @@ final class MigrationRunner implements ComponentInterface {
 				);
 				$revision = $target;
 			} elseif ( LockClaim::TakenOver === $claim && \is_null( $this->get_error() ) ) {
-				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within 10 minutes.', $revision );
-				$this->logger->warning( 'Data migration step {step} did not finish within 10 minutes, so it runs again.', array( 'step' => $revision + 1 ) );
+				$this->record_error( 'Step ' . ( $revision + 1 ) . ' did not finish within ' . self::LOCK_TTL / MINUTE_IN_SECONDS . ' minutes.', $revision );
+				$this->logger->warning(
+					'Data migration step {step} did not finish within {minutes} minutes, so it runs again.',
+					array(
+						'step'    => $revision + 1,
+						'minutes' => self::LOCK_TTL / MINUTE_IN_SECONDS,
+					)
+				);
 			}
 
 			if ( \is_null( $row ) ) {
@@ -302,7 +308,7 @@ final class MigrationRunner implements ComponentInterface {
 				)
 			);
 
-			// In production the lock stays until its hold expires, so a failing step runs again 10 minutes later; elsewhere the fixed step runs on the next request.
+			// In production the lock stays until its hold expires, when a failing step runs again; elsewhere the fixed step runs on the next request.
 			if ( PluginBoot::is_development_environment() ) {
 				$this->unlock();
 				throw $exception;
@@ -445,8 +451,9 @@ final class MigrationRunner implements ComponentInterface {
 			$this->lock->release( $this->owner );
 		} catch ( RuntimeException $exception ) {
 			$this->logger->warning(
-				'Could not release the data migration lock, which expires in 10 minutes: {error}',
+				'Could not release the data migration lock, which expires in {minutes} minutes: {error}',
 				array(
+					'minutes'   => self::LOCK_TTL / MINUTE_IN_SECONDS,
 					'error'     => $exception->getMessage(),
 					'exception' => $exception,
 				)
