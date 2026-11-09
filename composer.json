@@ -1,29 +1,29 @@
 {
-  "name": "ahegyes/wp-framework-core",
-  "description": "The plugin kernel. A plugin is composed of small components that load only where they apply, on WordPress's own APIs, with the infrastructure WordPress leaves every plugin to rebuild.",
-  "type": "library",
-  "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/ahegyes/wordpress-framework",
-  "require": {
-    "php": ">=8.5",
-    "ext-filter": "*",
-    "ahegyes/wp-framework-bootstrap": "^2.0",
-    "ahegyes/wp-framework-shared": "^2.0",
-    "psr/clock": "^1",
-    "psr/container": "^2.0.2",
-    "psr/log": "^3.0.2",
-    "psr/simple-cache": "^3"
-  },
-  "autoload": {
-    "psr-4": {
-      "DeepWebSolutions\\Framework\\Core\\": "src/"
-    }
-  },
-  "extra": {
-    "branch-alias": {
-      "dev-trunk": "2.x-dev"
-    },
-    "requires-wp": "7.1",
-    "scoping-text-domain": "wp-framework"
-  }
+	"name": "ahegyes/wp-framework-core",
+	"description": "The plugin kernel. A plugin is composed of small components that load only where they apply, on WordPress's own APIs, with the infrastructure WordPress leaves every plugin to rebuild.",
+	"type": "library",
+	"license": "GPL-3.0-or-later",
+	"homepage": "https://github.com/ahegyes/wordpress-framework",
+	"require": {
+		"php": ">=8.5",
+		"ext-filter": "*",
+		"ahegyes/wp-framework-bootstrap": "^2.0",
+		"ahegyes/wp-framework-shared": "^2.0",
+		"psr/clock": "^1",
+		"psr/container": "^2.0.2",
+		"psr/log": "^3.0.2",
+		"psr/simple-cache": "^3"
+	},
+	"autoload": {
+		"psr-4": {
+			"DeepWebSolutions\\Framework\\Core\\": "src/"
+		}
+	},
+	"extra": {
+		"branch-alias": {
+			"dev-trunk": "2.x-dev"
+		},
+		"requires-wp": "7.1",
+		"scoping-text-domain": "wp-framework"
+	}
 }
