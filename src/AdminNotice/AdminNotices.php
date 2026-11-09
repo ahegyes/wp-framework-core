@@ -401,7 +401,7 @@ final class AdminNotices implements ComponentInterface {
 		wp_register_script( "{$this->prefix}-notice-delivery", false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
 		wp_add_inline_script(
 			"{$this->prefix}-notice-delivery",
-			<<<JS
+			<<<'JS'
 			( function ( settings ) {
 				function deliver() {
 					wp.apiFetch( { path: settings.path, method: 'POST' } ).then( function ( notices ) {
@@ -425,8 +425,8 @@ final class AdminNotices implements ComponentInterface {
 						deliver();
 					}
 				}, 20 );
-			} )( $settings );
-			JS
+			} )
+			JS . '( ' . $settings . ' );'
 		);
 		wp_enqueue_script( "{$this->prefix}-notice-delivery" );
 	}
@@ -456,7 +456,7 @@ final class AdminNotices implements ComponentInterface {
 		wp_register_script( "{$this->prefix}-notice-dismissal", false, array( 'wp-api-fetch' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
 		wp_add_inline_script(
 			"{$this->prefix}-notice-dismissal",
-			<<<JS
+			<<<'JS'
 			( function ( settings ) {
 				document.addEventListener( 'click', function ( event ) {
 					var button = event.target instanceof Element ? event.target.closest( '.notice-dismiss' ) : null;
@@ -477,8 +477,8 @@ final class AdminNotices implements ComponentInterface {
 						console.error( 'The notice dismissal failed.', error );
 					} );
 				} );
-			} )( $settings );
-			JS
+			} )
+			JS . '( ' . $settings . ' );'
 		);
 		wp_enqueue_script( "{$this->prefix}-notice-dismissal" );
 	}

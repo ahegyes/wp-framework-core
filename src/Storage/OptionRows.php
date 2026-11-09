@@ -260,7 +260,7 @@ final class OptionRows {
 	protected static function write( string $query, string $failure ): int {
 		global $wpdb;
 
-		$changed = $wpdb->query( $query ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared -- Prepared by the caller; the options API cannot write conditionally.
+		$changed = $wpdb->query( $query ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared by the caller; the options API cannot write conditionally.
 		if ( false === $changed ) {
 			throw new RuntimeException( "$failure: $wpdb->last_error" ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
