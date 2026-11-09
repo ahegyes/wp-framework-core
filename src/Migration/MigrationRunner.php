@@ -269,7 +269,9 @@ final class MigrationRunner implements ComponentInterface {
 				$finished = true;
 				if ( $step instanceof BatchedMigrationStepInterface ) {
 					$finished = ! $step->process_batch();
-					wp_cache_flush_runtime();
+					if ( wp_cache_supports( 'flush_runtime' ) ) {
+						wp_cache_flush_runtime();
+					}
 				} else {
 					$step();
 				}
@@ -317,7 +319,7 @@ final class MigrationRunner implements ComponentInterface {
 	// region HOOKS
 
 	/**
-	 * Tells users who can activate plugins, while steps are pending, that the last run failed or that a batched step is running in the background.
+	 * Tells users who can activate plugins, while steps are pending, that the last run failed or that a batched step is running in the background, with a link that runs a pending batched step now.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -330,27 +332,37 @@ final class MigrationRunner implements ComponentInterface {
 			return;
 		}
 
-		$name  = get_plugin_data( $this->plugin_file, false )['Name'];
-		$error = $this->get_error();
+		$name    = get_plugin_data( $this->plugin_file, false )['Name'];
+		$error   = $this->get_error();
+		$batched = $this->steps[ $revision ] instanceof BatchedMigrationStepInterface;
+		$run_now = esc_url( wp_nonce_url( admin_url( "admin-post.php?action={$this->get_hook()}_now" ), "{$this->get_hook()}_now" ) );
 		if ( ! \is_null( $error ) ) {
 			Requirements::print_admin_notice(
-				\sprintf(
-					/* translators: 1: The plugin's name. 2: The error message. */
-					esc_html__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s', 'wp-framework' ),
-					esc_html( $name ),
-					esc_html( $error['message'] )
-				)
+				$batched
+					? \sprintf(
+						/* translators: 1: The plugin's name. 2: The error message. 3: The URL that runs the update now. */
+						__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s <a href="%3$s">Run the update now</a>.', 'wp-framework' ),
+						esc_html( $name ),
+						esc_html( $error['message'] ),
+						$run_now
+					)
+					: \sprintf(
+						/* translators: 1: The plugin's name. 2: The error message. */
+						esc_html__( '%1$s could not update its data, so features that need the update stay off. Error: %2$s', 'wp-framework' ),
+						esc_html( $name ),
+						esc_html( $error['message'] )
+					)
 			);
 			return;
 		}
 
-		if ( $this->steps[ $revision ] instanceof BatchedMigrationStepInterface ) {
+		if ( $batched ) {
 			Requirements::print_admin_notice(
 				\sprintf(
 					/* translators: 1: The plugin's name. 2: The URL that runs the update now. */
 					__( '%1$s is updating its data in the background. <a href="%2$s">Run the update now</a>.', 'wp-framework' ),
 					esc_html( $name ),
-					esc_url( wp_nonce_url( admin_url( "admin-post.php?action={$this->get_hook()}_now" ), "{$this->get_hook()}_now" ) )
+					$run_now
 				),
 				array( 'type' => 'info' )
 			);
@@ -445,7 +457,7 @@ final class MigrationRunner implements ComponentInterface {
 	/**
 	 * Schedules the runner's next invocation, and logs a scheduler failure, which a later request retries.
 	 *
-	 * Inside its own hook the running invocation would satisfy enqueue(), so the continuation is a single invocation due a second later, and the queue run dispatching it ends instead of claiming it again at once.
+	 * Inside its own hook a running Action Scheduler invocation satisfies the enqueue, so the next request or process continues, and a queue run that keeps claiming, as wp action-scheduler run does, finds nothing of the runner's due and ends.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -453,7 +465,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  void
 	 */
 	protected function schedule_continuation(): void {
-		$scheduled = doing_action( $this->get_hook() ) ? $this->scheduler->schedule_single( $this->scheduled_hook, \time() + 1 ) : $this->scheduler->enqueue( $this->scheduled_hook );
+		$scheduled = $this->scheduler->enqueue( $this->scheduled_hook );
 		if ( true !== $scheduled ) {
 			$this->logger->warning(
 				'Could not schedule the next data migration run: {error}',
