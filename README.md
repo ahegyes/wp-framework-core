@@ -76,10 +76,11 @@ defined( 'ABSPATH' ) || exit;
 define( 'ACME_PC_FILE', __FILE__ );
 
 $acme_pc_bootstrap = __DIR__ . '/vendor-prefixed/ahegyes/wp-framework-bootstrap/load.php';
-if ( ! is_readable( $acme_pc_bootstrap ) || false === ( require_once $acme_pc_bootstrap ) ) { // The floor gate lives in the bootstrap package, so nothing built may load without it.
+if ( ! is_readable( $acme_pc_bootstrap ) ) { // The floor gate lives in the bootstrap package, so nothing built may load without it.
 	return;
 }
 
+require_once $acme_pc_bootstrap;
 if ( ! Requirements::check_floors( __FILE__ ) ) {
 	return;
 }
@@ -191,7 +192,7 @@ final class Greeting implements ComponentInterface {
 
 The five packages release together under one version, which the [changelog](https://github.com/ahegyes/wordpress-framework/blob/trunk/CHANGELOG.md) records.
 
-The 2.x contract is every public class, interface, enum, method, property and constant, the protected members of non-final classes, and the hook and priority each public callback method is registered on, unless tagged `@internal`. A `protected(set)` property is contract for reading, by its name and declared type. `@internal`, `private` and protected-on-final members are not contract, and an `@internal` symbol serves only its own package, because a caret edge installs a package beside an older or newer release of another. Hook names and their arguments, option and meta keys, REST routes, and the path and return value of bootstrap's `load.php` are contract too.
+The 2.x contract is every public class, interface, enum, method, property and constant, the protected members of non-final classes, and the hook and priority each public callback method is registered on, unless tagged `@internal`. A `protected(set)` property is contract for reading, by its name and declared type. `@internal`, `private` and protected-on-final members are not contract, and an `@internal` symbol serves only its own package, because a caret edge installs a package beside an older or newer release of another. Hook names and their arguments, option and meta keys, REST routes and the path of bootstrap's `load.php` are contract too.
 
 The `DeepWebSolutions\Framework\Core\Scheduling\Backends\` namespace is internal, so a class there is internal even without its tag.
 
