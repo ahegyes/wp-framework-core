@@ -203,7 +203,7 @@ final class OptionRows {
 	 * @return  string
 	 */
 	protected static function serialize( string $name, mixed $value ): string {
-		if ( ! self::is_storable( $value ) ) { // A stored object's class name changes with each plugin's scoping prefix, so it would not read back.
+		if ( ! StoredData::is_storable_data( $value ) ) {
 			throw new InvalidArgumentException( "The value of option '$name' holds something other than scalars, null and arrays." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
@@ -211,20 +211,6 @@ final class OptionRows {
 
 		$raw = maybe_serialize( $value );
 		return \is_scalar( $raw ) ? (string) $raw : '';
-	}
-
-	/**
-	 * Returns whether the value holds only scalars, null and arrays of them.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   mixed $value The value.
-	 *
-	 * @return  bool
-	 */
-	protected static function is_storable( mixed $value ): bool {
-		return \is_null( $value ) || \is_scalar( $value ) || ( \is_array( $value ) && \array_all( $value, self::is_storable( ... ) ) );
 	}
 
 	/**
