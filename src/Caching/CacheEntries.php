@@ -129,7 +129,9 @@ final class CacheEntries {
 	}
 
 	/**
-	 * Returns the value of the entry wrapped in a list, or null when the entry is not one of the generation.
+	 * Returns the value of the entry wrapped in a list, or null when the entry is not one of the generation or names a class that no longer loads.
+	 *
+	 * A class that no longer loads would read back as __PHP_Incomplete_Class, which PSR-16 counts as a value the cache cannot return. A string value that only looks like an object token reads as a miss.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -146,7 +148,15 @@ final class CacheEntries {
 		}
 
 		$value = $entry['value'];
-		return array( \is_string( $value ) ? maybe_unserialize( $value ) : $value );
+		if ( ! \is_string( $value ) ) {
+			return array( $value );
+		}
+
+		if ( is_serialized( $value ) && 0 < \preg_match_all( '/[OCE]:\d+:"([^"]+)"/', $value, $classes ) && ! \array_all( $classes[1], static fn ( string $token ): bool => \class_exists( \explode( ':', $token )[0] ) ) ) {
+			return null;
+		}
+
+		return array( maybe_unserialize( $value ) );
 	}
 
 	// endregion
