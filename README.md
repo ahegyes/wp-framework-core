@@ -138,14 +138,14 @@ final class Plugin {
 
 	public function __construct() {
 		$this->logger    = new ErrorLogLogger( self::SLUG );
-		$this->boot      = new PluginBoot( ACME_PC_FILE, self::PREFIX, $this->logger );
+		$this->boundary  = new PluginBoot( ACME_PC_FILE, self::PREFIX, $this->logger );
 		$this->scheduler = new Scheduler( self::PREFIX );
 	}
 
 	// ...
 
 	public function boot(): void {
-		$this->boot->run( $this->compose( ... ) );
+		$this->boundary->run( $this->compose( ... ) );
 	}
 
 	// ...
