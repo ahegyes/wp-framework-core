@@ -10,7 +10,7 @@ namespace DeepWebSolutions\Framework\Core;
  * @since   2.0.0
  * @version 2.0.0
  */
-interface ConditionalComponentInterface {
+interface ConditionalComponentInterface extends ComponentInterface {
 	/**
 	 * Returns whether the component and its children load.
 	 *
