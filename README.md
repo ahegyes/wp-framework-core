@@ -4,7 +4,7 @@ The plugin kernel. A plugin is composed of small components that load only where
 
 ## Requirements
 
-It builds on wp-framework-bootstrap and wp-framework-shared, and on the PSR container, log, clock and simple-cache interfaces. Its `composer.json` holds its PHP floor under `require.php` and its WordPress floor under `extra.requires-wp`, which a plugin's `Requires PHP` and `Requires at least` headers meet. The kernel builds components through a PSR-11 container the plugin chooses.
+It builds on wp-framework-bootstrap and wp-framework-shared, on the PSR container, log, clock and simple-cache interfaces, and on PHP's filter extension. Its `composer.json` holds its PHP floor under `require.php` and its WordPress floor under `extra.requires-wp`, which a plugin's `Requires PHP` and `Requires at least` headers meet. The kernel builds components through a PSR-11 container the plugin chooses.
 
 ## Installation
 
@@ -121,6 +121,7 @@ use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\Migration\MigrationR
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\PluginBoot;
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\PluginKernel;
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\Scheduling\Scheduler;
+use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\Scheduling\SchedulerInterface;
 use Acme\PersonaCore\Scoped\DI\ContainerBuilder;
 use Acme\PersonaCore\Scoped\Psr\Log\LoggerInterface as PsrLoggerInterface;
 
@@ -130,6 +131,7 @@ final class Plugin {
 	// ...
 
 	public const array COMPONENTS = array(
+		Scheduler::class,
 		AdminNotices::class,
 		Greeting::class,
 	);
@@ -138,8 +140,8 @@ final class Plugin {
 
 	public function __construct() {
 		$this->logger    = new ErrorLogLogger( self::SLUG );
-		$this->boundary  = new PluginBoot( ACME_PC_FILE, self::PREFIX, $this->logger );
 		$this->scheduler = new Scheduler( self::PREFIX );
+		$this->boundary  = new PluginBoot( ACME_PC_FILE, self::PREFIX, $this->logger );
 	}
 
 	// ...
@@ -155,7 +157,7 @@ final class Plugin {
 		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::PREFIX . '_revision', acme_pc_get_migration_steps(), $this->logger, $this->scheduler );
 		$this->migrations->register_hooks();
 
-		$this->kernel = new PluginKernel( new ContainerBuilder()->addDefinitions( $this->get_definitions( $this->logger ) )->build() );
+		$this->kernel = new PluginKernel( new ContainerBuilder()->addDefinitions( $this->get_definitions( $this->logger, $this->scheduler ) )->build() );
 		$this->kernel->boot( self::COMPONENTS );
 
 		return true;
@@ -163,9 +165,12 @@ final class Plugin {
 
 	// ...
 
-	protected function get_definitions( PsrLoggerInterface $logger ): array {
+	protected function get_definitions( PsrLoggerInterface $logger, Scheduler $scheduler ): array {
 		return array(
-			AdminNotices::class => static fn (): AdminNotices => new AdminNotices( self::PREFIX, $logger ),
+			PsrLoggerInterface::class => static fn (): PsrLoggerInterface => $logger,
+			Scheduler::class          => static fn (): Scheduler => $scheduler,
+			SchedulerInterface::class => static fn (): Scheduler => $scheduler,
+			AdminNotices::class       => static fn (): AdminNotices => new AdminNotices( self::PREFIX, $logger ),
 		);
 	}
 
@@ -186,6 +191,34 @@ final class Greeting implements ComponentInterface {
 
 	// ...
 }
+```
+
+The plugin's `uninstall.php` hands its footprint to `Uninstaller::run()`, which unschedules the plugin's jobs on every site and deletes the rest of the footprint on each site that consents. The footprint names the plugin's data by kind: `options`, `option_prefixes`, `transients`, `network_options`, `post_types`, `comment_types`, `meta` and `meta_prefixes` by meta type, `user_meta_site`, `user_meta_global` and their `_prefixes`, `capabilities`, `tables`, `cron_hooks`, `as_hooks` and `as_groups`. A site consents through an option that holds `yes`, a key holding `yes` in an option's array, or a constant defined as `true`. The file loads the engine as the main file does, and on a site below the floors or with an incomplete build it keeps the data:
+
+```php
+function acme_pc_get_footprint(): array {
+	return array(
+		'option_prefixes'           => array( Plugin::PREFIX . '_' ),
+		'user_meta_site_prefixes'   => array( Plugin::PREFIX . '_' ),
+		'user_meta_global_prefixes' => array( Plugin::PREFIX . '_' ),
+		'network_options'           => array( Plugin::PREFIX . '_network_notices' ),
+		'cron_hooks'                => array( Plugin::PREFIX . '_revision/migration/run' ),
+		'as_groups'                 => array( Plugin::PREFIX ),
+	);
+}
+```
+
+```php
+Uninstaller::run(
+	$acme_pc_file,
+	$acme_pc_footprint,
+	array(
+		'consent' => array(
+			'option' => $acme_pc_consent,
+			'key'    => 'delete_data',
+		),
+	)
+);
 ```
 
 ## Contract and versioning
