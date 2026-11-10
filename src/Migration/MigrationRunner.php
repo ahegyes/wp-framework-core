@@ -257,7 +257,7 @@ final class MigrationRunner implements ComponentInterface {
 			}
 
 			while ( $revision < $target ) {
-				if ( ! $this->holds_lock( $revision ) ) { // The previous checkpoint fired option hooks, so another run may have taken the lock over since the last check.
+				if ( ! $this->refresh_lock( $revision ) ) { // The previous checkpoint fired option hooks, so another run may have taken the lock over since the last check.
 					return;
 				}
 
@@ -265,7 +265,7 @@ final class MigrationRunner implements ComponentInterface {
 				$memory_limit = wp_convert_hr_to_bytes( (string) \ini_get( 'memory_limit' ) );
 				$spent        = ! \is_null( $this->deadline ) && ( $this->get_time() >= $this->deadline || ( 0 < $memory_limit && \memory_get_usage( true ) > 0.9 * $memory_limit ) );
 				if ( $spent || ( $step instanceof BatchedMigrationStepInterface && ! doing_action( $this->get_hook() ) ) ) {
-					$this->unlock(); // The lock goes first, so that the continuation can take it.
+					$this->release_lock(); // The lock goes first, so that the continuation can take it.
 					$this->schedule_continuation();
 					return;
 				}
@@ -282,7 +282,7 @@ final class MigrationRunner implements ComponentInterface {
 					$step();
 				}
 
-				if ( ! $this->holds_lock( $revision ) ) { // A run whose lock was taken over must leave the revision and the error row to the run that holds it now.
+				if ( ! $this->refresh_lock( $revision ) ) { // A run whose lock was taken over must leave the revision and the error row to the run that holds it now.
 					return;
 				}
 
@@ -296,7 +296,7 @@ final class MigrationRunner implements ComponentInterface {
 				}
 			}
 		} catch ( \Throwable $exception ) {
-			if ( $this->holds_lock( $revision ?? 0 ) ) {
+			if ( $this->refresh_lock( $revision ?? 0 ) ) {
 				$this->record_error( $exception->getMessage(), $revision );
 			}
 
@@ -310,14 +310,14 @@ final class MigrationRunner implements ComponentInterface {
 
 			// In production the lock stays until its hold expires, when a failing step runs again; elsewhere the fixed step runs on the next request.
 			if ( PluginBoot::is_development_environment() ) {
-				$this->unlock();
+				$this->release_lock();
 				throw $exception;
 			}
 
 			return;
 		}
 
-		$this->unlock();
+		$this->release_lock();
 	}
 
 	// endregion
@@ -417,7 +417,7 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @return  bool
 	 */
-	protected function holds_lock( int $revision ): bool {
+	protected function refresh_lock( int $revision ): bool {
 		try {
 			if ( $this->lock->refresh( $this->owner ) ) {
 				return true;
@@ -446,7 +446,7 @@ final class MigrationRunner implements ComponentInterface {
 	 *
 	 * @return  void
 	 */
-	protected function unlock(): void {
+	protected function release_lock(): void {
 		try {
 			$this->lock->release( $this->owner );
 		} catch ( RuntimeException $exception ) {

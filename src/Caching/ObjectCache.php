@@ -61,13 +61,13 @@ final class ObjectCache implements PsrCacheInterface {
 	 */
 	#[\Override]
 	public function set( string $key, mixed $value, null|int|\DateInterval $ttl = null ): bool {
+		$name     = \md5( CacheEntries::check_key( $key ) );
 		$lifetime = CacheEntries::get_lifetime( $ttl );
 		if ( ! \is_null( $lifetime ) && $lifetime <= 0 ) {
 			return $this->delete( $key );
 		}
 
-		$name = \md5( CacheEntries::check_key( $key ) );
-		return wp_cache_set( $name, CacheEntries::wrap( $value, $this->get_salt() ), $this->group, $lifetime ?? 0 );
+		return wp_cache_set( $name, CacheEntries::wrap( $value, $this->get_salt() ?? $this->start_salt() ), $this->group, $lifetime ?? 0 );
 	}
 
 	/**
@@ -114,7 +114,7 @@ final class ObjectCache implements PsrCacheInterface {
 			return array();
 		}
 
-		$salt = $this->find_salt();
+		$salt = $this->get_salt();
 		if ( \is_null( $salt ) ) {
 			return \array_fill_keys( $keys, $default );
 		}
@@ -160,7 +160,7 @@ final class ObjectCache implements PsrCacheInterface {
 			return true;
 		}
 
-		$salt = $this->get_salt();
+		$salt = $this->get_salt() ?? $this->start_salt();
 		foreach ( $entries as $name => $value ) {
 			$entries[ $name ] = CacheEntries::wrap( $value, $salt );
 		}
@@ -215,7 +215,7 @@ final class ObjectCache implements PsrCacheInterface {
 	 */
 	protected function read( string $key ): ?array {
 		$name = \md5( CacheEntries::check_key( $key ) );
-		$salt = $this->find_salt();
+		$salt = $this->get_salt();
 		return \is_null( $salt ) ? null : CacheEntries::unwrap( wp_cache_get( $name, $this->group ), $salt );
 	}
 
@@ -229,13 +229,13 @@ final class ObjectCache implements PsrCacheInterface {
 	 *
 	 * @return  string|null
 	 */
-	protected function find_salt(): ?string {
+	protected function get_salt(): ?string {
 		$salt = wp_cache_get( 'last_changed', $this->group );
 		return \is_string( $salt ) && '' !== $salt ? $salt : null;
 	}
 
 	/**
-	 * Returns the group's salt, after starting one when it has none.
+	 * Starts a salt for the group and returns it.
 	 *
 	 * Started through wp_cache_set_last_changed(), because wp_cache_get_last_changed() would return a stored salt that no read accepts.
 	 *
@@ -244,8 +244,8 @@ final class ObjectCache implements PsrCacheInterface {
 	 *
 	 * @return  string
 	 */
-	protected function get_salt(): string {
-		return $this->find_salt() ?? wp_cache_set_last_changed( $this->group );
+	protected function start_salt(): string {
+		return wp_cache_set_last_changed( $this->group );
 	}
 
 	/**
