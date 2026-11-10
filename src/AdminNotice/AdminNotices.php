@@ -470,12 +470,15 @@ final class AdminNotices implements ComponentInterface {
 	public function rest_deliver(): array {
 		$delivered = array();
 		foreach ( $this->select( true ) as $notice ) {
-			$content     = wp_kses_post( $this->get_message( $notice ) );
+			$content = wp_kses_post( $this->get_message( $notice ) );
+
+			// A space before each block element keeps a screen reader from running paragraphs and list items together.
+			$spaced      = (string) \preg_replace( '#<(?=/?(?:p|br|div|li|ul|ol|h[1-6]|blockquote|pre|t[rdh]|d[ldt]|hr)\b)#i', ' <', $content );
 			$delivered[] = array(
 				'id'            => $this->get_dom_id( $notice ),
 				'status'        => $notice->type->value,
 				'content'       => $content,
-				'spoken'        => \html_entity_decode( wp_strip_all_tags( $content ), \ENT_QUOTES | \ENT_HTML5, 'UTF-8' ),
+				'spoken'        => \html_entity_decode( wp_strip_all_tags( $spaced, true ), \ENT_QUOTES | \ENT_HTML5, 'UTF-8' ),
 				'isDismissible' => $notice->dismissible,
 			);
 			$this->acknowledge( $notice );
