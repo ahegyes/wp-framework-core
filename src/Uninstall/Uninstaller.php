@@ -71,7 +71,7 @@ final class Uninstaller {
 	/**
 	 * Removes the plugin's footprint from every site that consents, and unschedules its jobs on every site.
 	 *
-	 * Failures are thrown once every site was visited, and a site that failed keeps its consent row, so WordPress keeps the plugin's files and the next uninstall completes the pass.
+	 * Failures are thrown once every site was visited, and a site that failed keeps its consent row, so WordPress keeps the plugin's files and the next uninstall retries the pass.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

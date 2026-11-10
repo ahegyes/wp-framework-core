@@ -491,7 +491,7 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Returns the notices the current user sees here in scope order, or for the block editor the site, network and user one-shots that name no screens.
 	 *
-	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose read or filters throw is logged and left out.
+	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A throw while a scope's notices are read or filtered is logged and ends that scope's selection.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
