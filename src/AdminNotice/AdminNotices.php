@@ -69,7 +69,7 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @var     bool
 	 */
-	protected bool $needs_dismiss_script = false;
+	protected bool $needs_dismissal_script = false;
 
 	// endregion
 
@@ -110,9 +110,9 @@ final class AdminNotices implements ComponentInterface {
 	#[\Override]
 	public function register_hooks(): void {
 		add_action( 'all_admin_notices', array( $this, 'render_notices' ) );
-		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_script' ) );
+		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_delivery_script' ) );
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
-		add_action( 'admin_footer', array( $this, 'enqueue_dismiss_script' ) );
+		add_action( 'admin_footer', array( $this, 'enqueue_dismissal_script' ) );
 	}
 
 	// endregion
@@ -313,7 +313,7 @@ final class AdminNotices implements ComponentInterface {
 			);
 			if ( $notice->persistent && $notice->dismissible ) {
 				$attributes['data-notice-nonce'] = wp_create_nonce( $this->get_nonce_action( $notice->scope, $notice->id ) );
-				$this->needs_dismiss_script      = true;
+				$this->needs_dismissal_script    = true;
 			}
 
 			wp_admin_notice(
@@ -383,7 +383,7 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @return  void
 	 */
-	public function enqueue_editor_script(): void {
+	public function enqueue_delivery_script(): void {
 		// The other block editors, such as the site editor while it browses, show no notices, so a one-shot delivered there would be lost.
 		$screen = \function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( true !== $screen?->is_block_editor() || 'post' !== $screen->base ) {
@@ -445,8 +445,8 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @return  void
 	 */
-	public function enqueue_dismiss_script(): void {
-		if ( ! $this->needs_dismiss_script ) {
+	public function enqueue_dismissal_script(): void {
+		if ( ! $this->needs_dismissal_script ) {
 			return;
 		}
 
