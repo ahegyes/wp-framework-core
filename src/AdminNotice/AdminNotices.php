@@ -399,7 +399,7 @@ final class AdminNotices implements ComponentInterface {
 			)
 		);
 
-		wp_register_script( $handle, false, array( 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
+		wp_register_script( $handle, false, array( 'wp-a11y', 'wp-api-fetch', 'wp-data', 'wp-hooks', 'wp-notices' ), null, true ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion -- A handle without a source loads no file to cache.
 		wp_add_inline_script(
 			$handle,
 			<<<'JS'
@@ -410,8 +410,11 @@ final class AdminNotices implements ComponentInterface {
 							wp.data.dispatch( 'core/notices' ).createNotice( notice.status, notice.content, {
 								id: notice.id,
 								isDismissible: notice.isDismissible,
+								speak: false,
 								__unstableHTML: true
 							} );
+							// The notices store would read the markup aloud with its entities spelled out.
+							wp.a11y.speak( notice.spoken, 'error' === notice.status ? 'assertive' : 'polite' );
 						} );
 					} ).catch( function ( error ) {
 						console.error( 'The notice delivery failed.', error );
@@ -549,20 +552,22 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Returns the one-shots the block editor shows the current user, as its notices store takes them, and acknowledges them.
+	 * Returns the one-shots the block editor shows the current user, as its notices store takes them with a plain-text copy to speak, and acknowledges them.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @return  list<array{id: string, status: string, content: string, isDismissible: bool}>
+	 * @return  list<array{id: string, status: string, content: string, spoken: string, isDismissible: bool}>
 	 */
 	public function rest_deliver(): array {
 		$delivered = array();
 		foreach ( $this->select( true ) as $notice ) {
+			$content     = wp_kses_post( $this->get_message( $notice ) );
 			$delivered[] = array(
 				'id'            => $this->get_dom_id( $notice ),
 				'status'        => $notice->type->value,
-				'content'       => wp_kses_post( $this->get_message( $notice ) ),
+				'content'       => $content,
+				'spoken'        => \html_entity_decode( wp_strip_all_tags( $content ), \ENT_QUOTES | \ENT_HTML5, 'UTF-8' ),
 				'isDismissible' => $notice->dismissible,
 			);
 			$this->acknowledge( $notice );
