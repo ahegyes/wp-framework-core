@@ -114,13 +114,17 @@ final class ObjectCache implements PsrCacheInterface {
 			return array();
 		}
 
-		$salt    = $this->find_salt();
+		$salt = $this->find_salt();
+		if ( \is_null( $salt ) ) {
+			return \array_fill_keys( $keys, $default );
+		}
+
 		$names   = \array_map( 'md5', $keys );
-		$entries = \is_null( $salt ) ? array() : wp_cache_get_multiple( $names, $this->group );
+		$entries = wp_cache_get_multiple( $names, $this->group );
 
 		$values = array();
 		foreach ( $keys as $index => $key ) {
-			$entry          = \is_null( $salt ) ? null : CacheEntries::unwrap( $entries[ $names[ $index ] ] ?? false, $salt );
+			$entry          = CacheEntries::unwrap( $entries[ $names[ $index ] ] ?? false, $salt );
 			$values[ $key ] = \is_null( $entry ) ? $default : $entry[0];
 		}
 
@@ -162,7 +166,7 @@ final class ObjectCache implements PsrCacheInterface {
 		}
 
 		$stored = wp_cache_set_multiple( $entries, $this->group, $lifetime ?? 0 );
-		return \array_all( \array_keys( $entries ), fn( $name ) => true === ( $stored[ $name ] ?? false ) );
+		return \array_all( \array_keys( $entries ), static fn ( string $name ): bool => true === ( $stored[ $name ] ?? false ) );
 	}
 
 	/**
@@ -260,12 +264,7 @@ final class ObjectCache implements PsrCacheInterface {
 		}
 
 		$deleted = wp_cache_delete_multiple( $names, $this->group );
-		$gone    = true;
-		foreach ( $names as $name ) {
-			$gone = ( true === ( $deleted[ $name ] ?? false ) || $this->is_absent( $name ) ) && $gone;
-		}
-
-		return $gone;
+		return \array_all( $names, fn ( string $name ): bool => true === ( $deleted[ $name ] ?? false ) || $this->is_absent( $name ) );
 	}
 
 	/**

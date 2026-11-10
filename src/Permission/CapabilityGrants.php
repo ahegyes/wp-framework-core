@@ -82,7 +82,8 @@ final class CapabilityGrants implements ComponentInterface {
 	 */
 	public function run(): void {
 		$roles       = wp_roles();
-		$fingerprint = \md5( (string) wp_json_encode( array( $this->grants, \array_values( \array_filter( \array_keys( $this->grants ), $roles->is_role( ... ) ) ) ) ) );
+		$present     = \array_keys( \array_intersect_key( $this->grants, $roles->roles ) );
+		$fingerprint = \md5( (string) wp_json_encode( array( $this->grants, $present ) ) );
 		$row         = $this->get_row();
 		if ( $row['fingerprint'] === $fingerprint ) {
 			return;

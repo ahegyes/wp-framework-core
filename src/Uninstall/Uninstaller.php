@@ -137,21 +137,22 @@ final class Uninstaller {
 			$args
 		);
 		if ( ! is_multisite() ) {
-			$uninstaller->uninstall_site( true );
+			$uninstaller->uninstall_site();
 		} else {
 			if ( wp_is_large_network() && ! self::is_constant_true( 'WP_CLI' ) ) { // A web request could not finish sweeping a large network within the server's time limit, which WP-CLI does not have.
 				throw new RuntimeException( 'Uninstall does not sweep a large network in a web request; run `wp plugin uninstall` instead.' );
 			}
 
-			foreach ( get_sites(
+			$site_ids = get_sites(
 				array(
 					'fields' => 'ids',
 					'number' => 0,
 				)
-			) as $site_id ) {
+			);
+			foreach ( $site_ids as $site_id ) {
 				switch_to_blog( $site_id );
 				try {
-					$uninstaller->uninstall_site( false );
+					$uninstaller->uninstall_site();
 				} finally {
 					restore_current_blog();
 					if ( wp_cache_supports( 'flush_runtime' ) ) { // WordPress keeps every visited site's options in its runtime cache, so the sweep's memory would grow with each site.
@@ -188,11 +189,9 @@ final class Uninstaller {
 	 *
 	 * @global  \wpdb $wpdb The WordPress database connection.
 	 *
-	 * @param   bool $network_footprint Whether the pass also deletes the network options and network-wide user meta, which a single site keeps as its own.
-	 *
 	 * @return  void
 	 */
-	protected function uninstall_site( bool $network_footprint ): void {
+	protected function uninstall_site(): void {
 		global $wpdb;
 
 		$failed = \count( $this->failures );
@@ -293,9 +292,10 @@ final class Uninstaller {
 					}
 				}
 
-				$keys = $meta_keys[ $name ] ?? array();
+				$keys          = $meta_keys[ $name ] ?? array();
+				$prefix_tables = '' === $meta_type['meta_type'] ? $tables : array( (string) _get_meta_table( $meta_type['meta_type'] ), ...$tables );
 				foreach ( $meta_prefixes[ $name ] ?? array() as $prefix ) {
-					foreach ( '' === $meta_type['meta_type'] ? $tables : array( (string) _get_meta_table( $meta_type['meta_type'] ), ...$tables ) as $table ) {
+					foreach ( $prefix_tables as $table ) {
 						$keys = \array_merge( $keys, $this->get_names_by_prefix( $table, 'meta_key', $prefix ) );
 					}
 				}
@@ -338,7 +338,7 @@ final class Uninstaller {
 				$this->record_failure( "table $table", $wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $table ) ?? '' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A plugin's own table, which no WordPress API drops.
 			}
 
-			if ( $network_footprint ) {
+			if ( ! is_multisite() ) {
 				$this->delete_network_footprint();
 			}
 

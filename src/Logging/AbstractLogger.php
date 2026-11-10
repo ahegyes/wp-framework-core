@@ -55,8 +55,12 @@ abstract class AbstractLogger extends PsrAbstractLogger {
 	 * @return  int
 	 */
 	protected static function get_severity( mixed $level ): int {
-		$severity = \is_string( $level ) ? ( self::SEVERITIES[ $level ] ?? null ) : null;
-		return $severity ?? throw new PsrInvalidArgumentException( "Log level '" . ( \is_string( $level ) ? $level : \get_debug_type( $level ) ) . "' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		if ( ! \is_string( $level ) || ! \array_key_exists( $level, self::SEVERITIES ) ) {
+			$shown = \is_string( $level ) ? $level : \get_debug_type( $level );
+			throw new PsrInvalidArgumentException( "Log level '$shown' is not a PSR-3 level." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		}
+
+		return self::SEVERITIES[ $level ];
 	}
 
 	/**

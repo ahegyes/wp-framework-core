@@ -222,7 +222,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
-		$hook  = ( new ScheduledHook( $hook ) )->hook; // Given no hook name, Action Scheduler would cancel the pending actions of every hook.
+		new ScheduledHook( $hook ); // Given no hook name, Action Scheduler would cancel the pending actions of every hook.
 		$ready = $this->check_ready( __METHOD__ );
 		if ( true !== $ready ) {
 			return $ready;
@@ -259,7 +259,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @return  true|\WP_Error
 	 */
 	protected function check_ready( string $method ): true|\WP_Error {
-		$error = match ( true ) {
+		$ready = match ( true ) {
 			0 === did_action( 'init' ) || \array_any( $this->backends, static fn ( BackendInterface $backend ): bool => BackendState::Initializing === $backend->get_state() )
 				=> new \WP_Error( 'scheduler_not_ready', 'Scheduling waits until init has fired and Action Scheduler has initialized.' ),
 			// Readiness is measured for the site the scheduler was built on, while another site may run other plugins or lack Action Scheduler's tables.
@@ -268,11 +268,11 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 			default => true,
 		};
 
-		if ( true !== $error ) {
-			_doing_it_wrong( esc_html( $method ), esc_html( $error->get_error_message() ), '2.0.0' );
+		if ( true !== $ready ) {
+			_doing_it_wrong( esc_html( $method ), esc_html( $ready->get_error_message() ), '2.0.0' );
 		}
 
-		return $error;
+		return $ready;
 	}
 
 	/**
