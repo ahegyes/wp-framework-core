@@ -12,7 +12,7 @@ use Psr\Clock\ClockInterface as PsrClockInterface;
 /**
  * Leases a named lock to one owner at a time, which refreshes its hold while it works, and lets another owner take the lock over from a hold left past its TTL.
  *
- * The lock is one row of the current site's options table, written only by compare-and-swap, because add_option() overwrites a row inserted after its cached check, while update_option() and delete_option() write whatever the row holds.
+ * The lock is one row of the current site's options table, written only through OptionRows' compare-and-swap.
  *
  * @since   2.0.0
  * @version 2.0.0

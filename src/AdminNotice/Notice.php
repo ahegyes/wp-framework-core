@@ -10,7 +10,7 @@ use DeepWebSolutions\Framework\Shared\ValueObject\AbstractValueObject;
 /**
  * An admin notice: what it says, to whom, on which screens and for how long.
  *
- * Stores keep the row that to_array() returns rather than the object, because each plugin scopes this class under its own namespace.
+ * AdminNotices keeps the row that to_array() returns rather than the object, because each plugin scopes this class under its own namespace.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -40,16 +40,16 @@ final readonly class Notice extends AbstractValueObject {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string       $id          The id, unique among its scope's notices and matching ID_PATTERN; a viewer's recorded dismissal or delivery outlives the notice, so a new occasion needs a new id.
+	 * @param   string       $id          The id, unique among its scope's notices and matching ID_PATTERN. A viewer's recorded dismissal or delivery outlives the notice, so a new occasion needs a new id.
 	 * @param   string       $message     The message, as HTML in the locale of the request that creates the notice.
 	 * @param   NoticeType   $type        Optional. The kind of notice. Default is an error.
 	 * @param   NoticeScope  $scope       Optional. Where the notice belongs. Default is a user.
-	 * @param   bool         $persistent  Optional. Whether the notice shows until it is dismissed, removed or expired, rather than once. Default false.
-	 * @param   bool         $dismissible Optional. Whether a viewer can dismiss the notice. Default true.
+	 * @param   bool         $persistent  Optional. Whether the notice shows until it is dismissed, removed or expired, rather than once. Default is false.
+	 * @param   bool         $dismissible Optional. Whether a viewer can dismiss the notice. Default is true.
 	 * @param   string|null  $capability  Optional. The capability a viewer needs, which site and network notices require. Default is none.
 	 * @param   list<string> $screens     Optional. The ids of the screens the notice shows on. Default is every screen of its scope's surfaces.
 	 * @param   int|null     $expires_at  Optional. The Unix time at which the notice expires. Default is never.
-	 * @param   bool         $per_viewer  Optional. Whether each viewer dismisses a site or network notice, and sees it as a one-shot, for themselves rather than for everyone, as user and request notices always do. Default false.
+	 * @param   bool         $per_viewer  Optional. Whether each viewer dismisses a site or network notice, and sees it as a one-shot, for themselves rather than for everyone, as user and request notices always do. Default is false.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the id, capability, screens or expiry is invalid.
 	 */

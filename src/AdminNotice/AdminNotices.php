@@ -81,8 +81,8 @@ final class AdminNotices implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string             $prefix The plugin's prefix, matching PREFIX_PATTERN without a reserved segment.
-	 * @param   PsrLoggerInterface $logger The logger that records storage failures.
+	 * @param   string             $prefix The plugin's prefix: a lowercase letter followed by up to 31 lowercase letters, digits and underscores, with no network or hidden segment.
+	 * @param   PsrLoggerInterface $logger The logger that records failures to read, write or filter notices.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
 	 */
@@ -108,7 +108,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   NoticeScope $scope   The scope.
-	 * @param   int         $user_id Optional. The user of user notices, where 0 is the current user. Default 0.
+	 * @param   int         $user_id Optional. The user of user notices, where 0 is the current user. Default is 0.
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
 	 * @throws  LogicException           Thrown when user notices have no user and nobody is logged in.
@@ -150,7 +150,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   Notice $notice  The notice.
-	 * @param   int    $user_id Optional. The user of a user notice, where 0 is the current user. Default 0.
+	 * @param   int    $user_id Optional. The user of a user notice, where 0 is the current user. Default is 0.
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for a notice of another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
@@ -180,7 +180,7 @@ final class AdminNotices implements ComponentInterface {
 	 *
 	 * @param   string      $id      The notice's id.
 	 * @param   NoticeScope $scope   The notice's scope.
-	 * @param   int         $user_id Optional. The user of a user notice, where 0 is the current user. Default 0.
+	 * @param   int         $user_id Optional. The user of a user notice, where 0 is the current user. Default is 0.
 	 *
 	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
 	 * @throws  LogicException           Thrown when a user notice has no user and nobody is logged in.
@@ -279,9 +279,7 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Enqueues, on the post editor, the script that shows the current user's block-editor notices, fetched from the delivery endpoint as the editor loads with one-shots waiting and after each save that is not an autosave.
-	 *
-	 * The load only reports whether one-shots wait, because the meta boxes' save loads the edit screen in the background and discards it. The editor.savePost handler runs at priority 20, after the meta boxes save at 10, so it fetches the rejections that save reported, and it never throws, because a throw there reports the save as failed. Messages show as HTML, as on classic screens.
+	 * Enqueues, on the post editor, the script that shows the current user's block-editor notices.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -316,19 +314,24 @@ final class AdminNotices implements ComponentInterface {
 								id: notice.id,
 								isDismissible: notice.isDismissible,
 								speak: false,
+								// Messages show as HTML, as on classic screens.
 								__unstableHTML: true
 							} );
 							// The notices store would read the markup aloud with its entities spelled out.
 							wp.a11y.speak( notice.spoken, 'error' === notice.status ? 'assertive' : 'polite' );
 						} );
 					} ).catch( function ( error ) {
+						// A throw from an editor.savePost handler reports the save as failed.
 						console.error( 'The notice delivery failed.', error );
 					} );
 				}
 
+				// The page only reports whether one-shots wait, because the meta boxes' save loads this screen in the background and discards it.
 				if ( settings.waiting ) {
 					deliver();
 				}
+
+				// After the meta boxes save at priority 10, so the delivery brings the rejections that save reported.
 				wp.hooks.addAction( 'editor.savePost', settings.prefix + '/notices', function ( post, options ) {
 					if ( ! ( options && options.isAutosave ) ) {
 						deliver();
@@ -488,7 +491,7 @@ final class AdminNotices implements ComponentInterface {
 	/**
 	 * Returns the notices the current user sees here in scope order, or for the block editor the site, network and user one-shots that name no screens.
 	 *
-	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose storage throws is logged and left out.
+	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose read or filters throw is logged and left out.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -801,13 +804,13 @@ final class AdminNotices implements ComponentInterface {
 	}
 
 	/**
-	 * Logs a storage failure as an error.
+	 * Logs a failure to read, write or filter a scope's notices as an error.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
 	 * @param   string      $message   The message, with {scope} and {message} placeholders.
-	 * @param   NoticeScope $scope     The scope whose storage failed.
+	 * @param   NoticeScope $scope     The scope whose notices failed.
 	 * @param   \Throwable  $exception The failure.
 	 *
 	 * @return  void

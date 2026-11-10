@@ -10,7 +10,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 /**
  * Reads and writes options as rows of the current site's options table, with writes that are atomic or conditional on the exact row read.
  *
- * The options API decides each write from a possibly cached read, so it cannot write conditionally. Conditional writes compare bytes, not the column's case-insensitive collation, and every write that changes a row clears the option's cache entries, so get_option() reads it. Rows are written without autoload, so a replace also stops an autoloaded option from autoloading.
+ * The options API decides each write from a possibly cached read, so add_option() overwrites a row inserted after its cached check, while update_option() and delete_option() write whatever the row holds. Conditional writes compare bytes, not the column's case-insensitive collation, and every write that changes a row clears the option's cache entries, so get_option() reads it. Rows are written without autoload, so a replace also stops an autoloaded option from autoloading.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -64,7 +64,7 @@ final class OptionRows {
 
 		self::check_name( $name );
 
-		// A row rather than a single value, because wpdb::get_var() returns null for an empty string as it does for a missing row.
+		// The query reads a row rather than a single value, because wpdb::get_var() returns null for an empty string as it does for a missing row.
 		$wpdb->flush();
 		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT option_value FROM %i WHERE option_name = %s', $wpdb->options, $name ) ?? '', ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A cached value may predate another request's write.
 		if ( '' !== $wpdb->last_error ) { // wpdb::get_row() returns null for a failed query as for a missing row, so the error left after the flush tells them apart.
