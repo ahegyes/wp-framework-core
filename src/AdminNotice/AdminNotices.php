@@ -227,7 +227,7 @@ final class AdminNotices implements ComponentInterface {
 						continue;
 					}
 
-					if ( null !== $notice->capability && ! current_user_can( $notice->capability ) ) {
+					if ( ! \is_null( $notice->capability ) && ! current_user_can( $notice->capability ) ) {
 						continue;
 					}
 
@@ -246,7 +246,7 @@ final class AdminNotices implements ComponentInterface {
 					 * @param   string $id    The notice's id.
 					 * @param   string $scope The notice's scope.
 					 */
-					if ( true === apply_filters( "{$this->prefix}/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
+					if ( true === apply_filters( "$this->prefix/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
 						$selected[] = $notice;
 					}
 				}
@@ -390,7 +390,7 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		$handle   = "{$this->prefix}-notice-delivery";
+		$handle   = "$this->prefix-notice-delivery";
 		$settings = wp_json_encode(
 			array(
 				'prefix'  => $this->prefix,
@@ -450,7 +450,7 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		$handle   = "{$this->prefix}-notice-dismissal";
+		$handle   = "$this->prefix-notice-dismissal";
 		$settings = wp_json_encode(
 			array(
 				'prefix' => $this->prefix,
@@ -505,7 +505,7 @@ final class AdminNotices implements ComponentInterface {
 		$nonce   = $params['nonce'] ?? null;
 		$user_id = get_current_user_id();
 
-		if ( null === $scope || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
+		if ( \is_null( $scope ) || ! \is_string( $id ) || 1 !== \preg_match( Notice::ID_PATTERN, $id ) || ! \is_string( $nonce ) ) {
 			return new \WP_Error( 'rest_invalid_param', 'The notice scope, id or nonce is invalid.', array( 'status' => 400 ) );
 		}
 
@@ -518,16 +518,16 @@ final class AdminNotices implements ComponentInterface {
 			$notice = null;
 			if ( NoticeScope::Request !== $scope ) {
 				$notice = $this->read( $scope, $owner )[ $id ] ?? null;
-				if ( null === $notice ) {
+				if ( \is_null( $notice ) ) {
 					return new \WP_Error( 'rest_notice_invalid_id', 'No stored notice has that id.', array( 'status' => 404 ) );
 				}
 
-				if ( ! $notice->persistent || ! $notice->dismissible || ( null !== $notice->capability && ! current_user_can( $notice->capability ) ) ) {
+				if ( ! $notice->persistent || ! $notice->dismissible || ( ! \is_null( $notice->capability ) && ! current_user_can( $notice->capability ) ) ) {
 					return new \WP_Error( 'rest_forbidden', 'This user cannot dismiss that notice.', array( 'status' => 403 ) );
 				}
 			}
 
-			$changed = null !== $notice && $notice->is_shared() ? $this->delete( $scope, $owner, $id ) : $this->hide( $scope, $id, $user_id, 'dismissed' );
+			$changed = ! \is_null( $notice ) && $notice->is_shared() ? $this->delete( $scope, $owner, $id ) : $this->hide( $scope, $id, $user_id, 'dismissed' );
 		} catch ( \Throwable $exception ) {
 			$this->log( 'Could not dismiss a {scope} notice: {message}', $scope, $exception );
 			return new \WP_Error( 'rest_notice_store_error', 'The notice store failed.', array( 'status' => 500 ) );
@@ -545,7 +545,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			do_action( "{$this->prefix}/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
+			do_action( "$this->prefix/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -639,7 +639,7 @@ final class AdminNotices implements ComponentInterface {
 		$notices = array();
 		foreach ( \is_array( $rows ) ? $rows : array() as $row ) {
 			$notice = \is_array( $row ) ? Notice::from_array( $row ) : null;
-			if ( null !== $notice && $scope === $notice->scope && ( null === $notice->expires_at || $notice->expires_at > \time() ) ) {
+			if ( ! \is_null( $notice ) && $scope === $notice->scope && ( \is_null( $notice->expires_at ) || $notice->expires_at > \time() ) ) {
 				$notices[ $notice->id ] = $notice;
 			}
 		}
@@ -792,7 +792,7 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $id      The notice's id.
 		 * @param   string $scope   The notice's scope.
 		 */
-		$message = apply_filters( "{$this->prefix}/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
+		$message = apply_filters( "$this->prefix/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
 		return \is_string( $message ) ? $message : $notice->message;
 	}
 
@@ -830,7 +830,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_dom_id( Notice $notice ): string {
-		return "{$this->prefix}-{$notice->scope->value}-notice-{$notice->id}";
+		return "$this->prefix-{$notice->scope->value}-notice-$notice->id";
 	}
 
 	/**

@@ -428,7 +428,7 @@ final class Uninstaller {
 	protected function run_cleanup( string $scope ): bool {
 		global $wpdb;
 
-		if ( null === $this->args['cleanup'] ) {
+		if ( \is_null( $this->args['cleanup'] ) ) {
 			return true;
 		}
 
@@ -560,7 +560,7 @@ final class Uninstaller {
 	 * @return  \WP_Post|true|\WP_Error
 	 */
 	protected static function confirm_deleted( mixed $deleted ): mixed {
-		return null === $deleted || false === $deleted ? new \WP_Error( 'not_deleted', 'It was not deleted.' ) : $deleted;
+		return \is_null( $deleted ) || false === $deleted ? new \WP_Error( 'not_deleted', 'It was not deleted.' ) : $deleted;
 	}
 
 	/**
