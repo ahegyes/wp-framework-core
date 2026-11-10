@@ -166,7 +166,7 @@ final class MigrationRunner implements ComponentInterface {
 
 	// endregion
 
-	// region METHODS
+	// region HOOKS
 
 	/**
 	 * Runs the pending steps under the lock, pausing at a batched step outside the runner's hook or once the request's budget is spent.
@@ -319,10 +319,6 @@ final class MigrationRunner implements ComponentInterface {
 
 		$this->release_lock();
 	}
-
-	// endregion
-
-	// region HOOKS
 
 	/**
 	 * Tells users who can activate plugins, while steps are pending, that the last run failed or that a batched step is running in the background, with a link that runs a pending batched step now.

@@ -99,6 +99,28 @@ final class AdminNotices implements ComponentInterface {
 
 	// endregion
 
+	// region GETTERS
+
+	/**
+	 * Returns the scope's unexpired notices for the current site, network or user, in the order they were first added.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   NoticeScope $scope   The scope.
+	 * @param   int         $user_id Optional. The user of user notices, where 0 is the current user. Default 0.
+	 *
+	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
+	 * @throws  LogicException           Thrown when user notices have no user and nobody is logged in.
+	 *
+	 * @return  list<Notice>
+	 */
+	public function get_notices( NoticeScope $scope, int $user_id = 0 ): array {
+		return \array_values( $this->read( $scope, $this->get_owner( $scope, $user_id ) ) );
+	}
+
+	// endregion
+
 	// region INHERITED METHODS
 
 	/**
@@ -167,123 +189,6 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	public function remove( string $id, NoticeScope $scope, int $user_id = 0 ): void {
 		$this->delete( $scope, $this->get_owner( $scope, $user_id ), $id );
-	}
-
-	/**
-	 * Returns the scope's unexpired notices for the current site, network or user, in the order they were first added.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   NoticeScope $scope   The scope.
-	 * @param   int         $user_id Optional. The user of user notices, where 0 is the current user. Default 0.
-	 *
-	 * @throws  InvalidArgumentException Thrown when a user is given for another scope.
-	 * @throws  LogicException           Thrown when user notices have no user and nobody is logged in.
-	 *
-	 * @return  list<Notice>
-	 */
-	public function get_notices( NoticeScope $scope, int $user_id = 0 ): array {
-		return \array_values( $this->read( $scope, $this->get_owner( $scope, $user_id ) ) );
-	}
-
-	/**
-	 * Returns the notices the current user sees here in scope order, or for the block editor the site, network and user one-shots that name no screens.
-	 *
-	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose storage throws is logged and left out.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   bool $block_editor Whether to select the block editor's notices.
-	 *
-	 * @return  list<Notice>
-	 */
-	protected function select( bool $block_editor ): array {
-		$user_id = get_current_user_id();
-		if ( 0 === $user_id ) {
-			return array();
-		}
-
-		$selected = array();
-		foreach ( self::ORDER as $scope ) {
-			$shows_here = match ( true ) {
-				$block_editor       => NoticeScope::Request !== $scope,
-				is_network_admin() => NoticeScope::Site !== $scope,
-				is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
-				default             => is_blog_admin(),
-			};
-			if ( ! $shows_here ) {
-				continue;
-			}
-
-			try {
-				foreach ( $this->read( $scope, $this->get_owner( $scope, 0 ) ) as $notice ) {
-					if ( $block_editor && ( $notice->persistent || array() !== $notice->screens ) ) {
-						continue;
-					}
-
-					if ( array() !== $notice->screens && ! \in_array( get_current_screen()?->id, $notice->screens, true ) ) {
-						continue;
-					}
-
-					if ( ! \is_null( $notice->capability ) && ! current_user_can( $notice->capability ) ) {
-						continue;
-					}
-
-					$state = $notice->is_shared() ? null : ( $this->get_hidden( $scope, $user_id )[ self::get_hidden_key( $scope, $notice->id ) ]['state'] ?? null );
-					if ( 'dismissed' === $state || ( 'delivered' === $state && ! $notice->persistent ) ) {
-						continue;
-					}
-
-					/**
-					 * Filters whether a notice shows to the current user, once its screens, its capability and the user's dismissal allow it.
-					 *
-					 * @since   2.0.0
-					 * @version 2.0.0
-					 *
-					 * @param   bool   $show  Whether the notice shows. Only true shows it.
-					 * @param   string $id    The notice's id.
-					 * @param   string $scope The notice's scope.
-					 */
-					if ( true === apply_filters( "$this->prefix/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
-						$selected[] = $notice;
-					}
-				}
-			} catch ( \Throwable $exception ) {
-				$this->log( 'Could not select the {scope} notices: {message}', $scope, $exception );
-			}
-		}
-
-		return $selected;
-	}
-
-	/**
-	 * Records that the current user was shown a one-shot notice, deleting it unless other viewers still need to see it.
-	 *
-	 * A throw from storage is logged, so the notice may show again.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @param   Notice $notice The notice as it was selected.
-	 *
-	 * @return  void
-	 */
-	protected function acknowledge( Notice $notice ): void {
-		if ( $notice->persistent ) {
-			return;
-		}
-
-		try {
-			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope || $notice->is_shared() ) {
-				$this->delete( $notice->scope, $this->get_owner( $notice->scope, 0 ), $notice->id );
-			} else {
-				$this->hide( $notice->scope, $notice->id, get_current_user_id(), 'delivered' );
-			}
-		} catch ( \Throwable $exception ) {
-			$this->log( 'Could not acknowledge a {scope} notice: {message}', $notice->scope, $exception );
-		}
 	}
 
 	// endregion
@@ -579,6 +484,105 @@ final class AdminNotices implements ComponentInterface {
 	// endregion
 
 	// region HELPERS
+
+	/**
+	 * Returns the notices the current user sees here in scope order, or for the block editor the site, network and user one-shots that name no screens.
+	 *
+	 * Persistent notices wait for a classic screen, whose dismissal they need, and the block editor's delivery endpoint has no screen a notice could name. A scope whose storage throws is logged and left out.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   bool $block_editor Whether to select the block editor's notices.
+	 *
+	 * @return  list<Notice>
+	 */
+	protected function select( bool $block_editor ): array {
+		$user_id = get_current_user_id();
+		if ( 0 === $user_id ) {
+			return array();
+		}
+
+		$selected = array();
+		foreach ( self::ORDER as $scope ) {
+			$shows_here = match ( true ) {
+				$block_editor       => NoticeScope::Request !== $scope,
+				is_network_admin() => NoticeScope::Site !== $scope,
+				is_user_admin()    => NoticeScope::Request === $scope || NoticeScope::User === $scope,
+				default             => is_blog_admin(),
+			};
+			if ( ! $shows_here ) {
+				continue;
+			}
+
+			try {
+				foreach ( $this->read( $scope, $this->get_owner( $scope, 0 ) ) as $notice ) {
+					if ( $block_editor && ( $notice->persistent || array() !== $notice->screens ) ) {
+						continue;
+					}
+
+					if ( array() !== $notice->screens && ! \in_array( get_current_screen()?->id, $notice->screens, true ) ) {
+						continue;
+					}
+
+					if ( ! \is_null( $notice->capability ) && ! current_user_can( $notice->capability ) ) {
+						continue;
+					}
+
+					$state = $notice->is_shared() ? null : ( $this->get_hidden( $scope, $user_id )[ self::get_hidden_key( $scope, $notice->id ) ]['state'] ?? null );
+					if ( 'dismissed' === $state || ( 'delivered' === $state && ! $notice->persistent ) ) {
+						continue;
+					}
+
+					/**
+					 * Filters whether a notice shows to the current user, once its screens, its capability and the user's dismissal allow it.
+					 *
+					 * @since   2.0.0
+					 * @version 2.0.0
+					 *
+					 * @param   bool   $show  Whether the notice shows. Only true shows it.
+					 * @param   string $id    The notice's id.
+					 * @param   string $scope The notice's scope.
+					 */
+					if ( true === apply_filters( "$this->prefix/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
+						$selected[] = $notice;
+					}
+				}
+			} catch ( \Throwable $exception ) {
+				$this->log( 'Could not select the {scope} notices: {message}', $scope, $exception );
+			}
+		}
+
+		return $selected;
+	}
+
+	/**
+	 * Records that the current user was shown a one-shot notice, deleting it unless other viewers still need to see it.
+	 *
+	 * A throw from storage is logged, so the notice may show again.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @param   Notice $notice The notice as it was selected.
+	 *
+	 * @return  void
+	 */
+	protected function acknowledge( Notice $notice ): void {
+		if ( $notice->persistent ) {
+			return;
+		}
+
+		try {
+			if ( NoticeScope::Request === $notice->scope || NoticeScope::User === $notice->scope || $notice->is_shared() ) {
+				$this->delete( $notice->scope, $this->get_owner( $notice->scope, 0 ), $notice->id );
+			} else {
+				$this->hide( $notice->scope, $notice->id, get_current_user_id(), 'delivered' );
+			}
+		} catch ( \Throwable $exception ) {
+			$this->log( 'Could not acknowledge a {scope} notice: {message}', $notice->scope, $exception );
+		}
+	}
 
 	/**
 	 * Returns the owner of the scope's notices: 0 for the request, otherwise the user, or the current blog or network, so code inside switch_to_blog() addresses the switched site.
