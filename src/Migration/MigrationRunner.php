@@ -185,7 +185,7 @@ final class MigrationRunner implements ComponentInterface {
 			return;
 		}
 
-		// Outside the hook a pending batched step only schedules the hook, so no lock is taken; a stale revision only leaves plain steps to the hook, which runs them too.
+		// Outside the hook a pending batched step only schedules the hook, so no lock is taken. A stale cached revision at worst leaves plain steps to the hook, which runs them too.
 		if ( ! doing_action( $this->get_hook() ) && ( $this->steps[ $cached ] ?? null ) instanceof BatchedMigrationStepInterface ) {
 			$this->schedule_continuation();
 			return;

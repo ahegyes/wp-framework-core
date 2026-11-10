@@ -48,9 +48,9 @@ final class Uninstaller {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @phpstan-param array<string, list<string>> $footprint
-	 * @phpstan-param array{meta: array<string, list<string>>, meta_prefixes: array<string, list<string>>} $meta_footprint
-	 * @phpstan-param array{consent: array{option: string, key: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<string>, cache_groups: list<string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
+	 * @phpstan-param array<string, list<non-empty-string>> $footprint
+	 * @phpstan-param array{meta: array<string, list<non-empty-string>>, meta_prefixes: array<string, list<non-empty-string>>} $meta_footprint
+	 * @phpstan-param array{consent: array{option: string, key: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<non-empty-string>, cache_groups: list<non-empty-string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
 	 *
 	 * @param   string               $plugin_file    The path to the plugin's entry file.
 	 * @param   array<string, mixed> $footprint      The names and prefixes of every kind but the meta kinds, by kind.
@@ -71,7 +71,7 @@ final class Uninstaller {
 	/**
 	 * Removes the plugin's footprint from every site that consents, and unschedules its jobs on every site.
 	 *
-	 * On each site the cleanup runs first, and a failed cleanup keeps that site's footprint. A failed delete leaves the others to run, while a throw from another plugin's hook ends that site's pass. Either keeps the site's consent row, and the failures are thrown once every site was visited, so WordPress keeps the plugin's files and the next uninstall retries. A job that cannot be unscheduled is logged instead, since it only ever fires into a missing callback.
+	 * Failures are thrown once every site was visited, and a site that failed keeps its consent row, so WordPress keeps the plugin's files and the next uninstall completes the pass.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -81,9 +81,9 @@ final class Uninstaller {
 	 *
 	 * @param   string               $plugin_file The path to the plugin's entry file.
 	 * @param   array<string, mixed> $footprint   The plugin's stored data by kind.
-	 * @param   array<string, mixed> $args        Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default none, which keeps the footprint.
+	 * @param   array<string, mixed> $args        Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default is none, which keeps the footprint.
 	 *
-	 * @throws  RuntimeException Thrown when a web request runs on a large network, before any change, or when a delete, a site's pass or the cleanup failed, once every site was visited.
+	 * @throws  RuntimeException Thrown when a web request runs on a large network, before any change, or when a read or delete, a site's pass or the cleanup failed, once every site was visited.
 	 *
 	 * @return  void
 	 */
@@ -218,7 +218,7 @@ final class Uninstaller {
 				foreach ( $jobs as $subject => $arguments ) {
 					$wpdb->flush();
 					try {
-						as_unschedule_all_actions( ...$arguments ); // Action Scheduler throws when its store fails to cancel an action.
+						as_unschedule_all_actions( ...$arguments ); // Action Scheduler's hybrid store, which it runs while it migrates its data, throws when it fails to cancel an action.
 						$result = null;
 					} catch ( \Throwable $throwable ) {
 						$result = $throwable;
@@ -312,7 +312,7 @@ final class Uninstaller {
 					}
 				}
 
-				if ( wp_cache_supports( 'flush_group' ) ) { // Where the object cache cannot flush a single group, the entries expire on their own.
+				if ( wp_cache_supports( 'flush_group' ) ) { // Where the object cache cannot flush a single group, cached entries stay until they are invalidated or evicted.
 					foreach ( $meta_type['cache_groups'] as $group ) {
 						wp_cache_flush_group( $group );
 					}
@@ -587,7 +587,7 @@ final class Uninstaller {
 	 *
 	 * @param   mixed $value The value.
 	 *
-	 * @return  list<string>
+	 * @return  list<non-empty-string>
 	 */
 	protected static function get_strings( mixed $value ): array {
 		return \array_values( \array_filter( \is_array( $value ) ? $value : array(), static fn ( mixed $item ): bool => \is_string( $item ) && '' !== $item && '0' !== $item ) );
@@ -602,7 +602,7 @@ final class Uninstaller {
 	 * @param   mixed                $value      The meta kind's entries, by meta type name.
 	 * @param   array<string, mixed> $meta_types The run's meta types, by name.
 	 *
-	 * @return  array<string, list<string>>
+	 * @return  array<string, list<non-empty-string>>
 	 */
 	protected static function get_meta_strings( mixed $value, array $meta_types ): array {
 		return \array_map( self::get_strings( ... ), \array_intersect_key( \is_array( $value ) ? $value : array(), $meta_types ) );

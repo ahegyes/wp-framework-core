@@ -118,7 +118,7 @@ final class PluginKernel {
 
 			$components[] = $component;
 			if ( \is_a( $class, CompositeComponentInterface::class, true ) ) {
-				\array_push( $components, ...$this->resolve( $class::get_child_component_classes() ) ); // The declared class names the children, so no runtime state can add an unvisited node.
+				\array_push( $components, ...$this->resolve( $class::get_child_component_classes() ) ); // Children come from a static method, so the visited set covers every node the walk can reach.
 			}
 		}
 
