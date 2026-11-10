@@ -112,7 +112,7 @@ function acme_pc_boot(): void {
 }
 ```
 
-One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site, rethrowing only in local and development environments; the composition registers the scheduler and the migration runner, over the steps that the plugin's `includes/migrations.php` returns as prefixed functions, then boots the kernel, which builds each top-level component through the container and registers its hooks:
+One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site, rethrowing only in local and development environments. The composition registers the migration runner, over the steps that the plugin's `includes/migrations.php` returns as prefixed functions, then boots the kernel, which builds each top-level component through the container, the scheduler first, and registers its hooks:
 
 ```php
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\AdminNotice\AdminNotices;
@@ -153,7 +153,6 @@ final class Plugin {
 	// ...
 
 	protected function compose(): bool {
-		$this->scheduler->register_hooks();
 		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::PREFIX . '_revision', acme_pc_get_migration_steps(), $this->logger, $this->scheduler );
 		$this->migrations->register_hooks();
 
