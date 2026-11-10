@@ -172,7 +172,7 @@ final class Uninstaller {
 		}
 
 		if ( array() !== $uninstaller->failures ) {
-			throw new RuntimeException( 'Uninstall could not remove everything: ' . \implode( '; ', $uninstaller->failures ) ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new RuntimeException( 'Uninstall could not remove everything: ' . \rtrim( \implode( '; ', $uninstaller->failures ), '.' ) . '.' ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}
 

@@ -498,7 +498,7 @@ final class MigrationRunner implements ComponentInterface {
 	 */
 	protected function checkpoint( int $revision ): void {
 		if ( ! update_option( $this->option, $revision, true ) ) {
-			throw new RuntimeException( "Could not record schema revision '$revision'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new RuntimeException( "Could not record data revision '$revision'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		if ( $revision > self::get_revision( "{$this->option}_high_water" ) ) {

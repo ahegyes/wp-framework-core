@@ -597,7 +597,7 @@ final class AdminNotices implements ComponentInterface {
 	protected function get_owner( NoticeScope $scope, int $user_id ): int {
 		if ( NoticeScope::User !== $scope ) {
 			if ( 0 !== $user_id ) {
-				throw new InvalidArgumentException( "A $scope->value notice belongs to no user, but user $user_id was given." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+				throw new InvalidArgumentException( "A $scope->value notice belongs to no user, but user '$user_id' was given." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 			}
 
 			return match ( $scope ) {
@@ -609,7 +609,7 @@ final class AdminNotices implements ComponentInterface {
 
 		$user_id = $user_id ?: get_current_user_id();
 		if ( $user_id < 1 ) {
-			throw new LogicException( "A user notice needs a user, but it has user $user_id." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+			throw new LogicException( "A user notice needs a user, but it has user '$user_id'." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
 		return $user_id;
