@@ -219,6 +219,8 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
+	 *
+	 * @throws  InvalidArgumentException Thrown when the hook name is invalid.
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
@@ -305,8 +307,6 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 
 	/**
 	 * Cancels every pending invocation of the hook on every readable backend, then checks that none is left.
-	 *
-	 * Action Scheduler reports no failed cancellation, so only the check catches one.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

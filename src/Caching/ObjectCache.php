@@ -27,7 +27,7 @@ final class ObjectCache implements PsrCacheInterface {
 	 *
 	 * @param   string $group The object cache group, under the plugin's own prefix.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the group is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens.
+	 * @throws  InvalidArgumentException Thrown when the group is invalid.
 	 */
 	public function __construct(
 		protected string $group
@@ -222,7 +222,7 @@ final class ObjectCache implements PsrCacheInterface {
 	/**
 	 * Returns the group's salt, or null when it has none.
 	 *
-	 * Read directly, because wp_cache_get_last_changed() stores a salt and fires an action for a group without one.
+	 * The salt is read directly, because wp_cache_get_last_changed() stores a salt and fires an action for a group without one.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -237,7 +237,7 @@ final class ObjectCache implements PsrCacheInterface {
 	/**
 	 * Starts a salt for the group and returns it.
 	 *
-	 * Started through wp_cache_set_last_changed(), because wp_cache_get_last_changed() would return a stored salt that no read accepts.
+	 * The salt is started through wp_cache_set_last_changed(), because wp_cache_get_last_changed() would return a stored salt that no read accepts.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

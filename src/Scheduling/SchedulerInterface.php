@@ -49,9 +49,9 @@ interface SchedulerInterface {
 	public function schedule_single( ScheduledHook $hook, int $timestamp, int $priority = 10 ): true|\WP_Error;
 
 	/**
-	 * Ensures that the hook recurs at the given interval, creating its chain when none exists and replacing duplicate chains, or a chain at another interval, with one chain, which also cancels a pending one-off invocation of the identity.
+	 * Ensures that the hook recurs at the given interval, as one chain.
 	 *
-	 * On Action Scheduler a running occurrence defers any replacement to a later call, because it queues its successor only after it completes; WP-Cron shows no running state, so it is called outside the hook's own callback.
+	 * A missing chain is created at the priority, which a chain that exists keeps, and duplicate chains or a chain at another interval are replaced with one, which also cancels a pending one-off invocation of the identity. On Action Scheduler a running occurrence defers any replacement to a later call. On WP-Cron, call it outside the hook's own callback, because WP-Cron shows no running state.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0

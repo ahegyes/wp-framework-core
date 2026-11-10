@@ -142,7 +142,7 @@ final class ActionSchedulerBackend implements BackendInterface {
 	 */
 	#[\Override]
 	public function unschedule_hook( string $hook ): true|\WP_Error {
-		// Best effort, since Action Scheduler reports no failure: at worst the hook's pending actions stay and run, or fail without a callback, until a later call succeeds.
+		// At worst a failing database write keeps Action Scheduler's bulk cancel looping until the request's time limit, and the hook's pending actions stay until a later call succeeds.
 		as_unschedule_all_actions( $hook );
 		return true;
 	}
