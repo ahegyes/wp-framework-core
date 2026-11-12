@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Core\Caching\Exceptions\InvalidCacheKeyException;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Core\Storage\OptionRows;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
@@ -10,7 +11,7 @@ use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Caches values as transients of the current site under a prefix, and clears them all at once by starting a new generation.
+ * Caches values as transients of the current site in a region under the plugin's prefix, and clears them all at once by starting a new generation.
  *
  * Each entry is named by its key's hash, because the options table matches names regardless of letter case and accents and drops the timeout of a transient name past 172 characters. Each also holds the generation it was stored under, so that clear() leaves one transient per key rather than one per generation.
  *
@@ -31,7 +32,7 @@ final class TransientCache implements PsrCacheInterface {
 	protected const int DEFAULT_TTL = DAY_IN_SECONDS;
 
 	/**
-	 * The length of the longest prefix, which leaves room for a key's hash within the 172 characters of a transient name.
+	 * The length of the longest prefix of the transient names, which leaves room for a key's hash within the 172 characters of a transient name.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -50,6 +51,16 @@ final class TransientCache implements PsrCacheInterface {
 	 */
 	protected string $generation_option;
 
+	/**
+	 * The prefix of every transient name: the plugin's prefix, the region and an underscore after each.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $prefix;
+
 	// endregion
 
 	// region MAGIC METHODS
@@ -60,17 +71,20 @@ final class TransientCache implements PsrCacheInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string      $prefix            The prefix of every transient name, under the plugin's own prefix.
-	 * @param   string|null $generation_option Optional. The option that keeps the generation, which caches that clear together share. Default is the prefix followed by cache_generation.
+	 * @param   PluginIdentity $identity   The identity of the plugin that owns the cache.
+	 * @param   string         $region     The cache's region, which follows the plugin's prefix and an underscore in every transient name.
+	 * @param   string|null    $generation Optional. The region whose generation the cache reads, which caches that clear together share, kept in the option {prefix}_{generation}_cache_generation. Default is the cache's own region.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the prefix or the generation option name is invalid.
+	 * @throws  InvalidArgumentException Thrown when the region leaves no room for a key's hash in a transient name, or the generation's option name is invalid.
 	 */
 	public function __construct(
-		protected string $prefix,
-		?string $generation_option = null
+		PluginIdentity $identity,
+		string $region,
+		?string $generation = null
 	) {
-		OptionRows::check_name( $prefix, self::MAX_PREFIX_LENGTH );
-		$this->generation_option = $generation_option ?? "{$prefix}cache_generation";
+		$this->prefix = "{$identity->prefix}_{$region}_";
+		OptionRows::check_name( $this->prefix, self::MAX_PREFIX_LENGTH );
+		$this->generation_option = "{$identity->prefix}_" . ( $generation ?? $region ) . '_cache_generation';
 		OptionRows::check_name( $this->generation_option );
 	}
 

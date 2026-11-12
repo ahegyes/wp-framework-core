@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Uninstall;
 
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 
 \defined( 'ABSPATH' ) || exit;
@@ -52,13 +53,13 @@ final class Uninstaller {
 	 * @phpstan-param array{meta: array<string, list<non-empty-string>>, meta_prefixes: array<string, list<non-empty-string>>} $meta_footprint
 	 * @phpstan-param array{consent: array{option: string, key: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<non-empty-string>, cache_groups: list<non-empty-string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
 	 *
-	 * @param   string               $plugin_file    The path to the plugin's entry file.
+	 * @param   PluginIdentity       $identity       The plugin's identity.
 	 * @param   array<string, mixed> $footprint      The names and prefixes of every kind but the meta kinds, by kind.
 	 * @param   array<string, mixed> $meta_footprint The meta keys and meta prefixes, by meta type name.
 	 * @param   array<string, mixed> $args           The consent, the meta types by name and the cleanup.
 	 */
 	protected function __construct(
-		protected readonly string $plugin_file,
+		protected readonly PluginIdentity $identity,
 		protected readonly array $footprint,
 		protected readonly array $meta_footprint,
 		protected readonly array $args
@@ -79,15 +80,15 @@ final class Uninstaller {
 	 * @phpstan-param Footprint $footprint
 	 * @phpstan-param Args      $args
 	 *
-	 * @param   string               $plugin_file The path to the plugin's entry file.
-	 * @param   array<string, mixed> $footprint   The plugin's stored data by kind.
-	 * @param   array<string, mixed> $args        Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default is none, which keeps the footprint.
+	 * @param   PluginIdentity       $identity  The plugin's identity.
+	 * @param   array<string, mixed> $footprint The plugin's stored data by kind.
+	 * @param   array<string, mixed> $args      Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default is none, which keeps the footprint.
 	 *
 	 * @throws  RuntimeException Thrown when a web request runs on a large network, before any change, or when a read or delete, a site's pass or the cleanup failed, once every site was visited.
 	 *
 	 * @return  void
 	 */
-	public static function run( string $plugin_file, array $footprint, array $args = array() ): void {
+	public static function run( PluginIdentity $identity, array $footprint, array $args = array() ): void {
 		$args            += array(
 			'consent'    => array(),
 			'meta_types' => array(),
@@ -119,7 +120,7 @@ final class Uninstaller {
 		$args['meta_types'] = $meta_types;
 
 		$uninstaller = new self(
-			$plugin_file,
+			$identity,
 			\array_map(
 				self::get_strings( ... ),
 				\array_diff_key(
@@ -230,7 +231,7 @@ final class Uninstaller {
 			// A job that cannot be unscheduled only ever fires into a missing callback, so it is logged and never holds the uninstall back.
 			$unscheduling = \array_splice( $this->failures, $failed );
 			if ( array() !== $unscheduling ) {
-				\error_log( '[' . plugin_basename( $this->plugin_file ) . '] Uninstall could not unschedule: ' . \implode( '; ', $unscheduling ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- No logger exists while a plugin is uninstalled.
+				\error_log( '[' . plugin_basename( $this->identity->file ) . '] Uninstall could not unschedule: ' . \implode( '; ', $unscheduling ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- No logger exists while a plugin is uninstalled.
 			}
 
 			$consent = get_option( $this->args['consent']['option'] );
@@ -438,7 +439,7 @@ final class Uninstaller {
 				array(
 					'scope'       => $scope,
 					'site_id'     => get_current_blog_id(),
-					'plugin_file' => $this->plugin_file,
+					'plugin_file' => $this->identity->file,
 				)
 			);
 			$result = null;

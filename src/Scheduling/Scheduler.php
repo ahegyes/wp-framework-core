@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\Scheduling;
 
 use DeepWebSolutions\Framework\Core\ComponentInterface;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Core\Scheduling\Backends\ActionSchedulerBackend;
 use DeepWebSolutions\Framework\Core\Scheduling\Backends\BackendInterface;
 use DeepWebSolutions\Framework\Core\Scheduling\Backends\BackendState;
@@ -64,17 +65,11 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $group The plugin's prefix, which names its Action Scheduler group and prefixes its WP-Cron schedules.
-	 *
-	 * @throws  InvalidArgumentException Thrown when the group is invalid.
+	 * @param   PluginIdentity $identity The plugin's identity, whose prefix names its Action Scheduler group and prefixes its WP-Cron schedules.
 	 */
-	public function __construct( string $group ) {
-		if ( 1 !== \preg_match( '/\A[a-z][a-z0-9_-]{0,189}\z/i', $group ) ) {
-			throw new InvalidArgumentException( "Group '$group' is not a letter followed by up to 189 letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
-		}
-
-		$this->wp_cron  = new WpCronBackend( $group );
-		$this->backends = array( new ActionSchedulerBackend( $group ), $this->wp_cron );
+	public function __construct( PluginIdentity $identity ) {
+		$this->wp_cron  = new WpCronBackend( $identity->prefix );
+		$this->backends = array( new ActionSchedulerBackend( $identity->prefix ), $this->wp_cron );
 		$this->blog_id  = get_current_blog_id();
 	}
 

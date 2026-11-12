@@ -4,6 +4,7 @@ namespace DeepWebSolutions\Framework\Core\AdminNotice;
 
 use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\LogicException;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
@@ -20,16 +21,6 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
  */
 final class AdminNotices implements ComponentInterface {
 	// region FIELDS AND CONSTANTS
-
-	/**
-	 * The pattern every prefix matches.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     string
-	 */
-	protected const string PREFIX_PATTERN = '/\A[a-z][a-z0-9_]{0,31}\z/';
 
 	/**
 	 * The segments a prefix may not contain, because the storage keys put them after a prefix, so such a prefix could name another plugin's keys.
@@ -71,16 +62,6 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	protected bool $needs_dismissal_script = false;
 
-	/**
-	 * The root of the plugin's hook names.
-	 *
-	 * @since   2.0.0
-	 * @version 2.0.0
-	 *
-	 * @var     string
-	 */
-	protected string $hook_root;
-
 	// endregion
 
 	// region MAGIC METHODS
@@ -91,23 +72,20 @@ final class AdminNotices implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   non-empty-string   $slug   The plugin's slug, which names its REST namespace and whose dashes become underscores in the root of its hook names.
-	 * @param   string             $prefix The plugin's prefix: a lowercase letter followed by up to 31 lowercase letters, digits and underscores, with no network or hidden segment.
-	 * @param   PsrLoggerInterface $logger The logger that records failures to read, write or filter notices.
+	 * @param   PluginIdentity     $identity The plugin's identity, whose prefix has no network or hidden segment.
+	 * @param   PsrLoggerInterface $logger   The logger that records failures to read, write or filter notices.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
+	 * @throws  InvalidArgumentException Thrown when the prefix has a network or hidden segment.
 	 */
 	public function __construct(
-		protected string $slug,
-		protected string $prefix,
+		protected PluginIdentity $identity,
 		protected PsrLoggerInterface $logger
 	) {
-		if ( 1 !== \preg_match( self::PREFIX_PATTERN, $prefix ) || array() !== \array_intersect( \explode( '_', $prefix ), self::RESERVED_SEGMENTS ) ) {
-			throw new InvalidArgumentException( "Notices prefix '$prefix' is not a lowercase letter followed by up to 31 lowercase letters, digits and underscores, or it has a 'network' or 'hidden' segment." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		if ( array() !== \array_intersect( \explode( '_', $identity->prefix ), self::RESERVED_SEGMENTS ) ) {
+			throw new InvalidArgumentException( "Notices prefix '$identity->prefix' has a 'network' or 'hidden' segment." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->hook_root = \str_replace( '-', '_', $slug );
-		$this->logger    = new GuardedLogger( $logger, $prefix );
+		$this->logger = new GuardedLogger( $logger, $identity );
 	}
 
 	// endregion
@@ -225,7 +203,7 @@ final class AdminNotices implements ComponentInterface {
 
 		foreach ( $this->select( false ) as $notice ) {
 			$attributes = array(
-				'data-notices'      => $this->prefix,
+				'data-notices'      => $this->identity->prefix,
 				'data-notice-scope' => $notice->scope->value,
 				'data-notice-id'    => $notice->id,
 			);
@@ -306,10 +284,10 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		$handle   = "$this->prefix-notice-delivery";
+		$handle   = "{$this->identity->prefix}-notice-delivery";
 		$settings = wp_json_encode(
 			array(
-				'prefix'  => $this->prefix,
+				'prefix'  => $this->identity->prefix,
 				'path'    => "{$this->get_rest_namespace()}/notices/deliveries",
 				'waiting' => array() !== $this->select( true ),
 			)
@@ -371,10 +349,10 @@ final class AdminNotices implements ComponentInterface {
 			return;
 		}
 
-		$handle   = "$this->prefix-notice-dismissal";
+		$handle   = "{$this->identity->prefix}-notice-dismissal";
 		$settings = wp_json_encode(
 			array(
-				'prefix' => $this->prefix,
+				'prefix' => $this->identity->prefix,
 				'path'   => "{$this->get_rest_namespace()}/notices/dismissals",
 			)
 		);
@@ -466,7 +444,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			do_action( "$this->hook_root/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
+			do_action( "{$this->identity->hook_root}/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -563,7 +541,7 @@ final class AdminNotices implements ComponentInterface {
 					 * @param   string $id    The notice's id.
 					 * @param   string $scope The notice's scope.
 					 */
-					if ( true === apply_filters( "$this->hook_root/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
+					if ( true === apply_filters( "{$this->identity->hook_root}/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
 						$selected[] = $notice;
 					}
 				}
@@ -654,9 +632,9 @@ final class AdminNotices implements ComponentInterface {
 	protected function read( NoticeScope $scope, int $owner ): array {
 		$rows = match ( $scope ) {
 			NoticeScope::Request => $this->request_notices,
-			NoticeScope::User    => get_user_option( "{$this->prefix}_notices", $owner ),
-			NoticeScope::Site    => get_option( "{$this->prefix}_notices" ),
-			NoticeScope::Network => get_network_option( $owner, "{$this->prefix}_network_notices" ),
+			NoticeScope::User    => get_user_option( "{$this->identity->prefix}_notices", $owner ),
+			NoticeScope::Site    => get_option( "{$this->identity->prefix}_notices" ),
+			NoticeScope::Network => get_network_option( $owner, "{$this->identity->prefix}_network_notices" ),
 		};
 
 		$notices = array();
@@ -688,9 +666,9 @@ final class AdminNotices implements ComponentInterface {
 		$rows = \array_map( static fn ( Notice $notice ): array => $notice->to_array(), $notices );
 		match ( $scope ) {
 			NoticeScope::Request => $this->request_notices = $rows,
-			NoticeScope::User    => update_user_option( $owner, "{$this->prefix}_notices", wp_slash( $rows ) ),
-			NoticeScope::Site    => update_option( "{$this->prefix}_notices", $rows, false ),
-			NoticeScope::Network => update_network_option( $owner, "{$this->prefix}_network_notices", $rows ),
+			NoticeScope::User    => update_user_option( $owner, "{$this->identity->prefix}_notices", wp_slash( $rows ) ),
+			NoticeScope::Site    => update_option( "{$this->identity->prefix}_notices", $rows, false ),
+			NoticeScope::Network => update_network_option( $owner, "{$this->identity->prefix}_network_notices", $rows ),
 		};
 	}
 
@@ -731,7 +709,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  array<string, array{state: string, at: int}>
 	 */
 	protected function get_hidden( NoticeScope $scope, int $user_id ): array {
-		$stored = NoticeScope::Network === $scope ? get_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", true ) : get_user_option( "{$this->prefix}_hidden_notices", $user_id );
+		$stored = NoticeScope::Network === $scope ? get_user_meta( $user_id, "{$this->identity->prefix}_network_hidden_notices", true ) : get_user_option( "{$this->identity->prefix}_hidden_notices", $user_id );
 
 		$hidden = array();
 		foreach ( \is_array( $stored ) ? $stored : array() as $key => $entry ) {
@@ -786,9 +764,9 @@ final class AdminNotices implements ComponentInterface {
 			'at'    => \time(),
 		);
 		if ( NoticeScope::Network === $scope ) {
-			update_user_meta( $user_id, "{$this->prefix}_network_hidden_notices", wp_slash( $hidden ) );
+			update_user_meta( $user_id, "{$this->identity->prefix}_network_hidden_notices", wp_slash( $hidden ) );
 		} else {
-			update_user_option( $user_id, "{$this->prefix}_hidden_notices", wp_slash( $hidden ) );
+			update_user_option( $user_id, "{$this->identity->prefix}_hidden_notices", wp_slash( $hidden ) );
 		}
 
 		return true;
@@ -815,7 +793,7 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $id      The notice's id.
 		 * @param   string $scope   The notice's scope.
 		 */
-		$message = apply_filters( "$this->hook_root/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
+		$message = apply_filters( "{$this->identity->hook_root}/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
 		return \is_string( $message ) ? $message : $notice->message;
 	}
 
@@ -853,7 +831,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_dom_id( Notice $notice ): string {
-		return "$this->prefix-{$notice->scope->value}-notice-$notice->id";
+		return "{$this->identity->prefix}-{$notice->scope->value}-notice-$notice->id";
 	}
 
 	/**
@@ -865,7 +843,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  non-falsy-string
 	 */
 	protected function get_rest_namespace(): string {
-		return "$this->slug/v1";
+		return "{$this->identity->slug}/v1";
 	}
 
 	/**
@@ -880,7 +858,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  string
 	 */
 	protected function get_nonce_action( NoticeScope $scope, string $id ): string {
-		return "{$this->prefix}_dismiss|" . get_current_blog_id() . ":$scope->value:$id";
+		return "{$this->identity->prefix}_dismiss|" . get_current_blog_id() . ":$scope->value:$id";
 	}
 
 	// endregion

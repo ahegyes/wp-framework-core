@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Logging;
 
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use Psr\Log\AbstractLogger as PsrAbstractLogger;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LogLevel as PsrLogLevel;
@@ -107,21 +108,21 @@ abstract class AbstractLogger extends PsrAbstractLogger {
 	}
 
 	/**
-	 * Returns the record as one entry of the PHP error log: the channel and level, the message, and any Throwable under the context's exception key on the lines after.
+	 * Returns the record as one entry of the PHP error log: the plugin's slug and the level, the message, and any Throwable under the context's exception key on the lines after.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string       $channel The name that identifies the plugin.
-	 * @param   string       $level   The record's level.
-	 * @param   string       $message The message as it is written.
-	 * @param   array<mixed> $context The record's context.
+	 * @param   PluginIdentity $identity The identity of the plugin the record belongs to.
+	 * @param   string         $level    The record's level.
+	 * @param   string         $message  The message as it is written.
+	 * @param   array<mixed>   $context  The record's context.
 	 *
 	 * @return  string
 	 */
-	protected static function format_record( string $channel, string $level, string $message, array $context ): string {
+	protected static function format_record( PluginIdentity $identity, string $level, string $message, array $context ): string {
 		$exception = $context['exception'] ?? null;
-		return "[$channel.$level] $message" . ( $exception instanceof \Throwable ? "\n$exception" : '' );
+		return "[$identity->slug.$level] $message" . ( $exception instanceof \Throwable ? "\n$exception" : '' );
 	}
 
 	// endregion

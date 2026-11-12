@@ -3,6 +3,7 @@
 namespace DeepWebSolutions\Framework\Core\Storage;
 
 use DeepWebSolutions\Framework\Core\Clock\SystemClock;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
 use Psr\Clock\ClockInterface as PsrClockInterface;
@@ -32,6 +33,16 @@ final readonly class Lock {
 	 */
 	protected PsrClockInterface $clock;
 
+	/**
+	 * The option that holds the lock: the plugin's prefix, an underscore and the lock's name.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $option;
+
 	// endregion
 
 	// region MAGIC METHODS
@@ -42,18 +53,21 @@ final readonly class Lock {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string                 $name  The name of the option that holds the lock, under the plugin's prefix.
-	 * @param   int                    $ttl   The seconds that a hold lasts once it is taken or refreshed, from 1.
-	 * @param   PsrClockInterface|null $clock Optional. The clock. Default is the system clock.
+	 * @param   PluginIdentity         $identity The identity of the plugin that owns the lock.
+	 * @param   string                 $name     The lock's name, which follows the plugin's prefix and an underscore in the option that holds the lock.
+	 * @param   int                    $ttl      The seconds that a hold lasts once it is taken or refreshed, from 1.
+	 * @param   PsrClockInterface|null $clock    Optional. The clock. Default is the system clock.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the name is not a valid option name or the TTL is below 1 second.
+	 * @throws  InvalidArgumentException Thrown when the option that holds the lock is not a valid option name or the TTL is below 1 second.
 	 */
 	public function __construct(
-		protected string $name,
+		PluginIdentity $identity,
+		string $name,
 		protected int $ttl,
 		?PsrClockInterface $clock = null
 	) {
-		OptionRows::check_name( $name );
+		$this->option = "{$identity->prefix}_$name";
+		OptionRows::check_name( $this->option );
 
 		if ( $ttl < 1 ) { // A hold whose TTL is below 1 second expires as it is taken, which would end the exclusion without a sign.
 			throw new InvalidArgumentException( "Lock TTL '$ttl' is below 1 second." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
@@ -88,11 +102,11 @@ final readonly class Lock {
 
 		$now  = $this->clock->now()->getTimestamp();
 		$hold = $this->make_hold( $owner, $now );
-		if ( ! \is_null( OptionRows::insert( $this->name, $hold ) ) ) {
+		if ( ! \is_null( OptionRows::insert( $this->option, $hold ) ) ) {
 			return LockClaim::Acquired;
 		}
 
-		$row = OptionRows::get( $this->name );
+		$row = OptionRows::get( $this->option );
 		if ( \is_null( $row ) ) {
 			return LockClaim::Busy; // The row was another owner's hold until its release after the insert.
 		}
@@ -120,7 +134,7 @@ final readonly class Lock {
 	 * @return  bool
 	 */
 	public function refresh( string $owner ): bool {
-		$row = OptionRows::get( $this->name );
+		$row = OptionRows::get( $this->option );
 		if ( \is_null( $row ) || ( self::read( $row->value )['owner'] ?? null ) !== $owner ) {
 			return false;
 		}
@@ -143,7 +157,7 @@ final readonly class Lock {
 	 * @return  void
 	 */
 	public function release( string $owner ): void {
-		$row = OptionRows::get( $this->name );
+		$row = OptionRows::get( $this->option );
 		if ( ! \is_null( $row ) && ( self::read( $row->value )['owner'] ?? null ) === $owner ) {
 			OptionRows::delete( $row );
 		}

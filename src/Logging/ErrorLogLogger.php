@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Logging;
 
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 
 \defined( 'ABSPATH' ) || exit;
@@ -21,10 +22,10 @@ final class ErrorLogLogger extends AbstractLogger {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $channel The name that identifies the plugin in every record.
+	 * @param   PluginIdentity $identity The identity of the plugin, whose slug starts every record.
 	 */
 	public function __construct(
-		protected string $channel
+		protected PluginIdentity $identity
 	) {}
 
 	// endregion
@@ -54,7 +55,7 @@ final class ErrorLogLogger extends AbstractLogger {
 			return;
 		}
 
-		\error_log( self::format_record( $this->channel, $level, self::interpolate( (string) $message, $context ), $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
+		\error_log( self::format_record( $this->identity, $level, self::interpolate( (string) $message, $context ), $context ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Writing to the error log is this logger's purpose.
 		do_action( "qm/$level", $message, $context );
 	}
 

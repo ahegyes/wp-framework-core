@@ -4,7 +4,7 @@ namespace DeepWebSolutions\Framework\Core\Permission;
 
 use DeepWebSolutions\Framework\Core\ComponentInterface;
 use DeepWebSolutions\Framework\Core\Logging\GuardedLogger;
-use DeepWebSolutions\Framework\Core\Storage\OptionRows;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
@@ -21,6 +21,20 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
  * @phpstan-type Pairs array<non-empty-string, list<non-empty-string>>
  */
 final class CapabilityGrants implements ComponentInterface {
+	// region FIELDS AND CONSTANTS
+
+	/**
+	 * The option that stores, on each site, the fingerprint of the last run and the grants made, autoloaded: the plugin's prefix followed by _capabilities.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $ledger_option;
+
+	// endregion
+
 	// region MAGIC METHODS
 
 	/**
@@ -29,19 +43,19 @@ final class CapabilityGrants implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string             $ledger_option The option that stores, on each site, the fingerprint of the last run and the grants made, autoloaded.
-	 * @param   Pairs              $grants        The capabilities to grant, as lists keyed by role name.
-	 * @param   PsrLoggerInterface $logger        The logger that records the writes that did not persist.
+	 * @param   PluginIdentity     $identity The identity of the plugin whose capabilities are granted.
+	 * @param   Pairs              $grants   The capabilities to grant, as lists keyed by role name.
+	 * @param   PsrLoggerInterface $logger   The logger that records the writes that did not persist.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the option name or the grants are invalid.
+	 * @throws  InvalidArgumentException Thrown when the grants are invalid.
 	 */
 	public function __construct(
-		protected string $ledger_option,
+		PluginIdentity $identity,
 		protected array $grants,
 		protected PsrLoggerInterface $logger
 	) {
-		OptionRows::check_name( $ledger_option );
-		$this->logger = new GuardedLogger( $logger, $ledger_option );
+		$this->ledger_option = "{$identity->prefix}_capabilities";
+		$this->logger        = new GuardedLogger( $logger, $identity );
 
 		foreach ( $grants as $role => $caps ) {
 			if ( ! \is_string( $role ) || '' === $role || ! \is_array( $caps ) || ! \array_is_list( $caps ) || ! \array_all( $caps, static fn ( mixed $cap ): bool => \is_string( $cap ) && '' !== $cap ) ) {

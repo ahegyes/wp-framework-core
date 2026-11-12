@@ -2,6 +2,8 @@
 
 namespace DeepWebSolutions\Framework\Core\Asset;
 
+use DeepWebSolutions\Framework\Core\PluginIdentity;
+
 \defined( 'ABSPATH' ) || exit;
 
 /**
@@ -19,12 +21,10 @@ final class Assets {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string           $plugin_file The path to the plugin's entry file, whose directory holds the built files and languages/.
-	 * @param   non-empty-string $slug        The plugin's slug, which is its text domain.
+	 * @param   PluginIdentity $identity The plugin's identity, whose entry file's directory holds the built files and languages/, and whose slug is its text domain.
 	 */
 	public function __construct(
-		protected string $plugin_file,
-		protected string $slug
+		protected PluginIdentity $identity
 	) {}
 
 	// endregion
@@ -49,9 +49,9 @@ final class Assets {
 		$asset = $this->get_asset( $path );
 
 		// Script modules the build imports are not script handles, so they stay out of the dependencies.
-		$registered = wp_register_script( $handle, plugin_dir_url( $this->plugin_file ) . $path, \array_values( \array_filter( $asset['dependencies'], 'is_string' ) ), $asset['version'], $args );
+		$registered = wp_register_script( $handle, plugin_dir_url( $this->identity->file ) . $path, \array_values( \array_filter( $asset['dependencies'], 'is_string' ) ), $asset['version'], $args );
 		if ( $registered ) {
-			wp_set_script_translations( $handle, $this->slug, plugin_dir_path( $this->plugin_file ) . 'languages' );
+			wp_set_script_translations( $handle, $this->identity->slug, plugin_dir_path( $this->identity->file ) . 'languages' );
 		}
 
 		return $registered;
@@ -69,7 +69,7 @@ final class Assets {
 	 * @return  bool
 	 */
 	public function register_style( string $handle, string $path ): bool {
-		$registered = wp_register_style( $handle, plugin_dir_url( $this->plugin_file ) . $path, array(), $this->get_asset( $path )['version'] );
+		$registered = wp_register_style( $handle, plugin_dir_url( $this->identity->file ) . $path, array(), $this->get_asset( $path )['version'] );
 		if ( $registered ) {
 			wp_style_add_data( $handle, 'rtl', 'replace' );
 		}
@@ -94,7 +94,7 @@ final class Assets {
 	 * @return  array{dependencies: list<non-empty-string|array{id: non-empty-string, import?: 'static'|'dynamic'}>, version: string}
 	 */
 	protected function get_asset( string $path ): array {
-		$file       = plugin_dir_path( $this->plugin_file ) . $path;
+		$file       = plugin_dir_path( $this->identity->file ) . $path;
 		$directory  = \dirname( $file );
 		$name       = \pathinfo( $file, \PATHINFO_FILENAME );
 		$asset_file = "$directory/$name.asset.php";

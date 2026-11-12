@@ -3,13 +3,14 @@
 namespace DeepWebSolutions\Framework\Core\Caching;
 
 use DeepWebSolutions\Framework\Core\Caching\Exceptions\InvalidCacheKeyException;
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use DeepWebSolutions\Framework\Shared\Exception\InvalidArgumentException;
 use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
 
 \defined( 'ABSPATH' ) || exit;
 
 /**
- * Caches values in a group of the current site's object cache, and clears them all at once by changing the group's salt.
+ * Caches values in a group of the current site's object cache named after a region under the plugin's prefix, and clears them all at once by changing the group's salt.
  *
  * Each entry is named by its key's hash, which never equals the group's last_changed key, and holds the salt it was stored under, so that clear() leaves one entry per key for the object cache to evict.
  *
@@ -17,6 +18,20 @@ use Psr\SimpleCache\CacheInterface as PsrCacheInterface;
  * @version 2.0.0
  */
 final class ObjectCache implements PsrCacheInterface {
+	// region FIELDS AND CONSTANTS
+
+	/**
+	 * The object cache group: the plugin's prefix, an underscore and the region.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $group;
+
+	// endregion
+
 	// region MAGIC METHODS
 
 	/**
@@ -25,15 +40,18 @@ final class ObjectCache implements PsrCacheInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $group The object cache group, under the plugin's own prefix.
+	 * @param   PluginIdentity $identity The identity of the plugin that owns the cache.
+	 * @param   string         $region   The cache's region, which follows the plugin's prefix and an underscore in the group's name.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the group is invalid.
+	 * @throws  InvalidArgumentException Thrown when the group's name is invalid.
 	 */
 	public function __construct(
-		protected string $group
+		PluginIdentity $identity,
+		string $region
 	) {
-		if ( 1 !== \preg_match( '/\A[a-z][a-z0-9_-]{0,63}\z/', $group ) ) {
-			throw new InvalidArgumentException( "Group '$group' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
+		$this->group = "{$identity->prefix}_$region";
+		if ( 1 !== \preg_match( '/\A[a-z][a-z0-9_-]{0,63}\z/', $this->group ) ) {
+			throw new InvalidArgumentException( "Group '$this->group' is not a lowercase letter followed by up to 63 lowercase letters, digits, underscores and hyphens." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 	}
 

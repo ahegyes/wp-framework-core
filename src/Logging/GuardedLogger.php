@@ -2,6 +2,7 @@
 
 namespace DeepWebSolutions\Framework\Core\Logging;
 
+use DeepWebSolutions\Framework\Core\PluginIdentity;
 use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LoggerInterface as PsrLoggerInterface;
 
@@ -26,12 +27,12 @@ final class GuardedLogger extends AbstractLogger {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   PsrLoggerInterface $logger  The logger that receives every record.
-	 * @param   string             $channel The name that identifies the plugin in a record written to the PHP error log.
+	 * @param   PsrLoggerInterface $logger   The logger that receives every record.
+	 * @param   PluginIdentity     $identity The identity of the plugin, whose slug starts a record written to the PHP error log.
 	 */
 	public function __construct(
 		protected PsrLoggerInterface $logger,
-		protected string $channel
+		protected PluginIdentity $identity
 	) {}
 
 	// endregion
@@ -61,7 +62,7 @@ final class GuardedLogger extends AbstractLogger {
 		} catch ( \Throwable $failure ) {
 			// The raw message with its context as JSON keeps the values that no placeholder names.
 			$encoded = wp_json_encode( \array_diff_key( $context, array( 'exception' => true ) ) );
-			\error_log( self::format_record( $this->channel, $level, "$message $encoded", $context ) . "\nThe logger failed: $failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The wrapped logger failed.
+			\error_log( self::format_record( $this->identity, $level, "$message $encoded", $context ) . "\nThe logger failed: $failure" ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- The wrapped logger failed.
 		}
 	}
 
