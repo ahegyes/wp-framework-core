@@ -58,7 +58,7 @@ final class Assets {
 	}
 
 	/**
-	 * Registers a built stylesheet with its build's version and its right-to-left variant, and returns whether WordPress registered it.
+	 * Registers a built stylesheet with its build's version, and with the right-to-left variant wp-scripts writes beside it where that file exists, and returns whether WordPress registered it.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -70,7 +70,7 @@ final class Assets {
 	 */
 	public function register_style( string $handle, string $path ): bool {
 		$registered = wp_register_style( $handle, plugin_dir_url( $this->identity->file ) . $path, array(), $this->get_asset( $path )['version'] );
-		if ( $registered ) {
+		if ( $registered && \is_readable( plugin_dir_path( $this->identity->file ) . \str_replace( '.css', '-rtl.css', $path ) ) ) {
 			wp_style_add_data( $handle, 'rtl', 'replace' );
 		}
 
