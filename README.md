@@ -141,7 +141,7 @@ final class Plugin {
 	public function __construct() {
 		$this->logger    = new ErrorLogLogger( self::SLUG );
 		$this->scheduler = new Scheduler( self::PREFIX );
-		$this->boundary  = new PluginBoot( ACME_PC_FILE, self::PREFIX, $this->logger );
+		$this->boundary  = new PluginBoot( ACME_PC_FILE, self::SLUG, self::PREFIX, $this->logger );
 	}
 
 	// ...
@@ -153,7 +153,7 @@ final class Plugin {
 	// ...
 
 	protected function compose(): bool {
-		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::PREFIX . '_revision', acme_pc_get_migration_steps(), $this->logger, $this->scheduler );
+		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::SLUG, self::PREFIX . '_revision', acme_pc_get_migration_steps(), $this->logger, $this->scheduler );
 		$this->migrations->register_hooks();
 
 		$this->kernel = new PluginKernel( new ContainerBuilder()->addDefinitions( $this->get_definitions( $this->logger, $this->scheduler ) )->build() );
@@ -169,7 +169,7 @@ final class Plugin {
 			PsrLoggerInterface::class => static fn (): PsrLoggerInterface => $logger,
 			Scheduler::class          => static fn (): Scheduler => $scheduler,
 			SchedulerInterface::class => static fn (): Scheduler => $scheduler,
-			AdminNotices::class       => static fn (): AdminNotices => new AdminNotices( self::PREFIX, $logger ),
+			AdminNotices::class       => static fn (): AdminNotices => new AdminNotices( self::SLUG, self::PREFIX, $logger ),
 		);
 	}
 
@@ -201,7 +201,7 @@ function acme_pc_get_footprint(): array {
 		'user_meta_site_prefixes'   => array( Plugin::PREFIX . '_' ),
 		'user_meta_global_prefixes' => array( Plugin::PREFIX . '_' ),
 		'network_options'           => array( Plugin::PREFIX . '_network_notices' ),
-		'cron_hooks'                => array( Plugin::PREFIX . '_revision/migration/run' ),
+		'cron_hooks'                => array( 'acme_persona_core/migration/run' ),
 		'as_groups'                 => array( Plugin::PREFIX ),
 	);
 }
