@@ -112,7 +112,7 @@ function acme_pc_boot(): void {
 }
 ```
 
-One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site, rethrowing only in local and development environments. The composition registers the migration runner, over the steps that the plugin's `includes/migrations.php` returns as prefixed functions, then boots the kernel, which builds each top-level component through the container, the scheduler first, and registers its hooks:
+One composition root builds the plugin. `PluginBoot` runs its composition and, when it throws, logs the failure and tells administrators instead of breaking the site, rethrowing only in local and development environments. The composition registers the migration runner, over the steps that the plugin's final `Migrations` class returns as first-class callables to its protected statics, then boots the kernel, which builds each top-level component through the container, the scheduler first, and registers its hooks:
 
 ```php
 use Acme\PersonaCore\Scoped\DeepWebSolutions\Framework\Core\AdminNotice\AdminNotices;
@@ -153,7 +153,7 @@ final class Plugin {
 	// ...
 
 	protected function compose(): bool {
-		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::SLUG, self::PREFIX . '_revision', acme_pc_get_migration_steps(), $this->logger, $this->scheduler );
+		$this->migrations = new MigrationRunner( ACME_PC_FILE, self::SLUG, self::PREFIX . '_revision', Migrations::get_steps(), $this->logger, $this->scheduler );
 		$this->migrations->register_hooks();
 
 		$this->kernel = new PluginKernel( new ContainerBuilder()->addDefinitions( $this->get_definitions( $this->logger, $this->scheduler ) )->build() );
@@ -194,19 +194,17 @@ final class Greeting implements ComponentInterface {
 
 `Assets` registers the plugin's built scripts and styles. Built as `new Assets( $plugin_file, $slug )` and defined once in the container, it reads the dependencies and version that wp-scripts writes beside each built file in its `.asset.php`: `register_script()` loads the script's translations from the plugin's `languages/` directory under its slug, and `register_style()` gives the stylesheet its right-to-left variant.
 
-The plugin's `uninstall.php` hands its footprint to `Uninstaller::run()`, which unschedules the plugin's jobs on every site and deletes the rest of the footprint on each site that consents. The footprint names the plugin's data by kind: `options`, `option_prefixes`, `transients`, `network_options`, `post_types`, `comment_types`, `meta` and `meta_prefixes` by meta type, `user_meta_site`, `user_meta_global` and their `_prefixes`, `capabilities`, `tables`, `cron_hooks`, `as_hooks` and `as_groups`. A site consents through an option that holds `yes`, a key holding `yes` in an option's array, or a constant defined as `true`. The file loads the engine as the main file does, and on a site below the floors or with an incomplete build it keeps the data:
+The plugin's `uninstall.php` hands its footprint, a constant of its composition root, to `Uninstaller::run()`, which unschedules the plugin's jobs on every site and deletes the rest of the footprint on each site that consents. The footprint names the plugin's data by kind: `options`, `option_prefixes`, `transients`, `network_options`, `post_types`, `comment_types`, `meta` and `meta_prefixes` by meta type, `user_meta_site`, `user_meta_global` and their `_prefixes`, `capabilities`, `tables`, `cron_hooks`, `as_hooks` and `as_groups`. A site consents through an option that holds `yes`, a key holding `yes` in an option's array, or a constant defined as `true`. The file loads the engine as the main file does, and on a site below the floors or with an incomplete build it keeps the data:
 
 ```php
-function acme_pc_get_footprint(): array {
-	return array(
-		'option_prefixes'           => array( Plugin::PREFIX . '_' ),
-		'user_meta_site_prefixes'   => array( Plugin::PREFIX . '_' ),
-		'user_meta_global_prefixes' => array( Plugin::PREFIX . '_' ),
-		'network_options'           => array( Plugin::PREFIX . '_network_notices' ),
+	public const array FOOTPRINT = array(
+		'option_prefixes'           => array( self::PREFIX . '_' ),
+		'user_meta_site_prefixes'   => array( self::PREFIX . '_' ),
+		'user_meta_global_prefixes' => array( self::PREFIX . '_' ),
+		'network_options'           => array( self::PREFIX . '_network_notices' ),
 		'cron_hooks'                => array( 'acme_persona_core/migration/run' ),
-		'as_groups'                 => array( Plugin::PREFIX ),
+		'as_groups'                 => array( self::PREFIX ),
 	);
-}
 ```
 
 ```php
