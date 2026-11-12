@@ -27,6 +27,16 @@ final class PluginBoot {
 	 */
 	protected(set) string $status = 'pending';
 
+	/**
+	 * The root of the plugin's hook names.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $hook_root;
+
 	// endregion
 
 	// region MAGIC METHODS
@@ -38,15 +48,18 @@ final class PluginBoot {
 	 * @version 2.0.0
 	 *
 	 * @param   string             $plugin_file The path to the plugin's entry file.
-	 * @param   string             $prefix      The prefix of the plugin's hook names, transients and log channel.
+	 * @param   non-empty-string   $slug        The plugin's slug, whose dashes become underscores in the root of its hook names.
+	 * @param   string             $prefix      The prefix of the plugin's transients and log channel.
 	 * @param   PsrLoggerInterface $logger      The logger that records boot failures.
 	 */
 	public function __construct(
 		protected string $plugin_file,
+		string $slug,
 		protected string $prefix,
 		protected PsrLoggerInterface $logger
 	) {
-		$this->logger = new GuardedLogger( $logger, $prefix );
+		$this->hook_root = \str_replace( '-', '_', $slug );
+		$this->logger    = new GuardedLogger( $logger, $prefix );
 	}
 
 	// endregion
@@ -108,7 +121,7 @@ final class PluginBoot {
 			 *
 			 * @param   \Throwable $exception The failure that stopped the composition.
 			 */
-			do_action( "$this->prefix/boot/failed", $exception );
+			do_action( "$this->hook_root/boot/failed", $exception );
 			if ( self::is_development_environment() ) {
 				throw $exception;
 			}
@@ -125,7 +138,7 @@ final class PluginBoot {
 			 * @since   2.0.0
 			 * @version 2.0.0
 			 */
-			do_action( "$this->prefix/boot/blocked" );
+			do_action( "$this->hook_root/boot/blocked" );
 			return;
 		}
 
@@ -137,7 +150,7 @@ final class PluginBoot {
 		 * @since   2.0.0
 		 * @version 2.0.0
 		 */
-		do_action( "$this->prefix/boot/succeeded" );
+		do_action( "$this->hook_root/boot/succeeded" );
 	}
 
 	/**

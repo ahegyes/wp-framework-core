@@ -103,17 +103,19 @@ final class MigrationRunner implements ComponentInterface {
 	 * @version 2.0.0
 	 *
 	 * @param   string                                                 $plugin_file      The path to the plugin's entry file.
-	 * @param   string                                                 $option           The option that stores the data revision, and the prefix of every other option and hook the runner owns.
+	 * @param   non-empty-string                                       $slug             The plugin's slug, whose dashes become underscores in the root of the runner's hook.
+	 * @param   string                                                 $option           The option that stores the data revision, and the prefix of every other option the runner owns.
 	 * @param   list<(callable(): void)|BatchedMigrationStepInterface> $steps            The migration steps, append-only, where index 0 brings the data to revision 1.
 	 * @param   PsrLoggerInterface                                     $logger           The logger that records failures and warnings.
 	 * @param   SchedulerInterface                                     $scheduler        The scheduler that runs the runner's hook in the background.
 	 * @param   int                                                    $batch_time_limit Optional. The seconds, from 1, that a request spends on steps and batches before it pauses. Default is 20.
 	 * @param   PsrClockInterface|null                                 $clock            Optional. The clock. Default is the system clock.
 	 *
-	 * @throws  InvalidArgumentException Thrown when the option name cannot name the lock or the scheduled hook.
+	 * @throws  InvalidArgumentException Thrown when the option cannot prefix every option the runner owns, or the slug cannot root the scheduled hook.
 	 */
 	public function __construct(
 		protected string $plugin_file,
+		protected string $slug,
 		protected string $option,
 		protected array $steps,
 		protected PsrLoggerInterface $logger,
@@ -121,6 +123,8 @@ final class MigrationRunner implements ComponentInterface {
 		protected int $batch_time_limit = 20,
 		?PsrClockInterface $clock = null
 	) {
+		OptionRows::check_name( "{$option}_high_water" ); // The longest option the runner owns.
+
 		$this->clock          = $clock ?? new SystemClock();
 		$this->lock           = new Lock( "{$option}_lock", self::LOCK_TTL, $this->clock );
 		$this->scheduled_hook = new ScheduledHook( $this->get_hook() );
@@ -580,7 +584,7 @@ final class MigrationRunner implements ComponentInterface {
 	 * @return  non-empty-string
 	 */
 	protected function get_hook(): string {
-		return "$this->option/migration/run";
+		return \str_replace( '-', '_', $this->slug ) . '/migration/run';
 	}
 
 	// endregion

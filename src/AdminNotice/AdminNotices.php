@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Keeps a plugin's admin notices, shows them in the admin, the post editor included, and lets users dismiss them through a REST endpoint.
  *
- * The prefix names the plugin's storage keys, hooks and REST namespace. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta, keyed by network.
+ * The slug names the plugin's REST namespace and, in snake case, roots its hooks, while the prefix names its storage keys. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta, keyed by network.
  *
  * @since   2.0.0
  * @version 2.0.0
@@ -71,6 +71,16 @@ final class AdminNotices implements ComponentInterface {
 	 */
 	protected bool $needs_dismissal_script = false;
 
+	/**
+	 * The root of the plugin's hook names.
+	 *
+	 * @since   2.0.0
+	 * @version 2.0.0
+	 *
+	 * @var     string
+	 */
+	protected string $hook_root;
+
 	// endregion
 
 	// region MAGIC METHODS
@@ -81,12 +91,14 @@ final class AdminNotices implements ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
+	 * @param   non-empty-string   $slug   The plugin's slug, which names its REST namespace and whose dashes become underscores in the root of its hook names.
 	 * @param   string             $prefix The plugin's prefix: a lowercase letter followed by up to 31 lowercase letters, digits and underscores, with no network or hidden segment.
 	 * @param   PsrLoggerInterface $logger The logger that records failures to read, write or filter notices.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the prefix is invalid.
 	 */
 	public function __construct(
+		protected string $slug,
 		protected string $prefix,
 		protected PsrLoggerInterface $logger
 	) {
@@ -94,7 +106,8 @@ final class AdminNotices implements ComponentInterface {
 			throw new InvalidArgumentException( "Notices prefix '$prefix' is not a lowercase letter followed by up to 31 lowercase letters, digits and underscores, or it has a 'network' or 'hidden' segment." ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Developer-facing, never rendered.
 		}
 
-		$this->logger = new GuardedLogger( $logger, $prefix );
+		$this->hook_root = \str_replace( '-', '_', $slug );
+		$this->logger    = new GuardedLogger( $logger, $prefix );
 	}
 
 	// endregion
@@ -453,7 +466,7 @@ final class AdminNotices implements ComponentInterface {
 			 * @param   int    $user_id The user who dismissed it.
 			 * @param   int    $owner   The notice's owner: 0 for a request notice, otherwise the user, blog or network id.
 			 */
-			do_action( "$this->prefix/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
+			do_action( "$this->hook_root/admin_notice/dismissed", $id, $scope->value, $user_id, $owner );
 		}
 
 		return new \WP_REST_Response( array( 'changed' => $changed ) );
@@ -550,7 +563,7 @@ final class AdminNotices implements ComponentInterface {
 					 * @param   string $id    The notice's id.
 					 * @param   string $scope The notice's scope.
 					 */
-					if ( true === apply_filters( "$this->prefix/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
+					if ( true === apply_filters( "$this->hook_root/admin_notice/should_show", true, $notice->id, $scope->value ) ) {
 						$selected[] = $notice;
 					}
 				}
@@ -802,7 +815,7 @@ final class AdminNotices implements ComponentInterface {
 		 * @param   string $id      The notice's id.
 		 * @param   string $scope   The notice's scope.
 		 */
-		$message = apply_filters( "$this->prefix/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
+		$message = apply_filters( "$this->hook_root/admin_notice/message", $notice->message, $notice->id, $notice->scope->value );
 		return \is_string( $message ) ? $message : $notice->message;
 	}
 
@@ -852,7 +865,7 @@ final class AdminNotices implements ComponentInterface {
 	 * @return  non-falsy-string
 	 */
 	protected function get_rest_namespace(): string {
-		return \str_replace( '_', '-', $this->prefix ) . '/v1';
+		return "$this->slug/v1";
 	}
 
 	/**
