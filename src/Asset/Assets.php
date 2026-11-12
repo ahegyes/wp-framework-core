@@ -82,9 +82,9 @@ final class Assets {
 	// region HELPERS
 
 	/**
-	 * Returns the dependencies and version that wp-scripts writes beside a built file, or no dependencies and the file's modification time where it wrote none.
+	 * Returns the dependencies and version that wp-scripts writes for a built file, or no dependencies and the file's modification time where it wrote none.
 	 *
-	 * The style-{entry}.css chunk that wp-scripts makes of a style.scss import has no asset file, and neither has a file built outside wp-scripts, so such a file is versioned by its own time, as a best effort.
+	 * The style-{entry}.css chunk that wp-scripts makes of a style.scss import has no asset file of its own, since its version sits in the entry's. A file built outside wp-scripts has none at all, so it is versioned by its own time, as a best effort.
 	 *
 	 * @since   2.0.0
 	 * @version 2.0.0
@@ -95,7 +95,12 @@ final class Assets {
 	 */
 	protected function get_asset( string $path ): array {
 		$file       = plugin_dir_path( $this->plugin_file ) . $path;
-		$asset_file = \dirname( $file ) . '/' . \pathinfo( $file, \PATHINFO_FILENAME ) . '.asset.php';
+		$name       = \pathinfo( $file, \PATHINFO_FILENAME );
+		$asset_file = \dirname( $file ) . "/$name.asset.php";
+		if ( ! \is_readable( $asset_file ) && \str_starts_with( $name, 'style-' ) && \str_ends_with( $file, '.css' ) ) {
+			$asset_file = \dirname( $file ) . '/' . \substr( $name, \strlen( 'style-' ) ) . '.asset.php';
+		}
+
 		if ( ! \is_readable( $asset_file ) ) {
 			return array(
 				'dependencies' => array(),
