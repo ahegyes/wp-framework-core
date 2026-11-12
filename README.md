@@ -89,10 +89,13 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/functions.php';
 ```
 
-It boots on `plugins_loaded` at priority 15, after WooCommerce and Action Scheduler have loaded:
+Its `functions.php` defines the accessor, the plugin's one `@api` function, which returns the composition root while the root's members stay internal, and boots the plugin from a static closure on `plugins_loaded` at priority 15, after WooCommerce and Action Scheduler have loaded:
 
 ```php
-add_action( 'plugins_loaded', 'acme_pc_boot', 15 );
+add_action(
+	'plugins_loaded',
+	static function (): void {
+		acme_pc_plugin()->boot();
 
 // ...
 
@@ -103,12 +106,6 @@ function acme_pc_plugin(): Plugin {
 	}
 
 	return $plugin;
-}
-
-// ...
-
-function acme_pc_boot(): void {
-	acme_pc_plugin()->boot();
 }
 ```
 
