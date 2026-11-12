@@ -64,7 +64,7 @@ final class Scheduler implements SchedulerInterface, ComponentInterface {
 	 * @since   2.0.0
 	 * @version 2.0.0
 	 *
-	 * @param   string $group The plugin's hook prefix, which names its Action Scheduler group and prefixes its WP-Cron schedules.
+	 * @param   string $group The plugin's prefix, which names its Action Scheduler group and prefixes its WP-Cron schedules.
 	 *
 	 * @throws  InvalidArgumentException Thrown when the group is invalid.
 	 */
