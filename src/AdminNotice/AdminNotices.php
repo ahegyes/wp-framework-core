@@ -13,7 +13,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Keeps a plugin's admin notices, shows them in the admin, the post editor included, and lets users dismiss them through a REST endpoint.
  *
- * The slug names the plugin's REST namespace and, in snake case, roots its hooks, while the prefix names its storage keys. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta, keyed by network.
+ * The slug names the plugin's REST namespace and, in snake case, roots its hooks, while the prefix names its storage keys. Each scope keeps its notices as one array by id: site notices in the {prefix}_notices option, network notices in the {prefix}_network_notices network option, user notices in the {prefix}_notices user option, and request notices in the instance, so components that add them must share it, and a plugin builds one instance, since the slug names its routes. A viewer's dismissals, and the one-shots shown to them that others still see, are kept in their {prefix}_hidden_notices user option, or for network notices in their {prefix}_network_hidden_notices user meta, keyed by network.
  *
  * @since   2.0.0
  * @version 2.0.0

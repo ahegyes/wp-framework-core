@@ -22,7 +22,7 @@ use Psr\Log\LoggerInterface as PsrLoggerInterface;
 /**
  * Brings a plugin's stored data to the revision its code expects, running the pending migration steps in order under a database lock.
  *
- * Plain steps run on wp_loaded of any request, while batched steps run only from the runner's own scheduled hook, so no visitor waits for bulk work.
+ * Plain steps run on wp_loaded of any request, while batched steps run only from the runner's own scheduled hook, so no visitor waits for bulk work. A plugin runs one runner, since the plugin's slug names that hook.
  *
  * @since   2.0.0
  * @version 2.0.0
