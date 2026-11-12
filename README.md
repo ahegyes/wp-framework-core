@@ -192,6 +192,8 @@ final class Greeting implements ComponentInterface {
 }
 ```
 
+`Assets` registers the plugin's built scripts and styles. Built as `new Assets( $plugin_file, $slug )` and defined once in the container, it reads the dependencies and version that wp-scripts writes beside each built file in its `.asset.php`: `register_script()` loads the script's translations from the plugin's `languages/` directory under its slug, and `register_style()` gives the stylesheet its right-to-left variant.
+
 The plugin's `uninstall.php` hands its footprint to `Uninstaller::run()`, which unschedules the plugin's jobs on every site and deletes the rest of the footprint on each site that consents. The footprint names the plugin's data by kind: `options`, `option_prefixes`, `transients`, `network_options`, `post_types`, `comment_types`, `meta` and `meta_prefixes` by meta type, `user_meta_site`, `user_meta_global` and their `_prefixes`, `capabilities`, `tables`, `cron_hooks`, `as_hooks` and `as_groups`. A site consents through an option that holds `yes`, a key holding `yes` in an option's array, or a constant defined as `true`. The file loads the engine as the main file does, and on a site below the floors or with an incomplete build it keeps the data:
 
 ```php
