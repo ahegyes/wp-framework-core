@@ -95,10 +95,11 @@ final class Assets {
 	 */
 	protected function get_asset( string $path ): array {
 		$file       = plugin_dir_path( $this->plugin_file ) . $path;
+		$directory  = \dirname( $file );
 		$name       = \pathinfo( $file, \PATHINFO_FILENAME );
-		$asset_file = \dirname( $file ) . "/$name.asset.php";
+		$asset_file = "$directory/$name.asset.php";
 		if ( ! \is_readable( $asset_file ) && \str_starts_with( $name, 'style-' ) && \str_ends_with( $file, '.css' ) ) {
-			$asset_file = \dirname( $file ) . '/' . \substr( $name, \strlen( 'style-' ) ) . '.asset.php';
+			$asset_file = "$directory/" . \substr( $name, \strlen( 'style-' ) ) . '.asset.php';
 		}
 
 		if ( ! \is_readable( $asset_file ) ) {
