@@ -14,7 +14,7 @@ use DeepWebSolutions\Framework\Shared\Exception\RuntimeException;
  * @version 2.0.0
  *
  * @phpstan-type Footprint array{cron_hooks?: list<non-empty-string>, as_hooks?: list<non-empty-string>, as_groups?: list<non-empty-string>, options?: list<non-empty-string>, option_prefixes?: list<non-empty-string>, transients?: list<non-empty-string>, post_types?: list<non-empty-string>, comment_types?: list<non-empty-string>, meta?: array<string, list<non-empty-string>>, meta_prefixes?: array<string, list<non-empty-string>>, user_meta_site?: list<non-empty-string>, user_meta_site_prefixes?: list<non-empty-string>, user_meta_global?: list<non-empty-string>, user_meta_global_prefixes?: list<non-empty-string>, network_options?: list<non-empty-string>, capabilities?: list<non-empty-string>, tables?: list<non-empty-string>}
- * @phpstan-type Args array{consent?: array{option?: string, key?: string, constant?: string}, meta_types?: array<string, array{meta_type?: string, meta_tables?: list<non-empty-string>, cache_groups?: list<non-empty-string>}>, cleanup?: callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void}
+ * @phpstan-type Args array{consent?: array{option?: string, constant?: string}, meta_types?: array<string, array{meta_type?: string, meta_tables?: list<non-empty-string>, cache_groups?: list<non-empty-string>}>, cleanup?: callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void}
  */
 final class Uninstaller {
 	// region FIELDS AND CONSTANTS
@@ -51,7 +51,7 @@ final class Uninstaller {
 	 *
 	 * @phpstan-param array<string, list<non-empty-string>> $footprint
 	 * @phpstan-param array{meta: array<string, list<non-empty-string>>, meta_prefixes: array<string, list<non-empty-string>>} $meta_footprint
-	 * @phpstan-param array{consent: array{option: string, key: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<non-empty-string>, cache_groups: list<non-empty-string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
+	 * @phpstan-param array{consent: array{option: string, constant: string}, meta_types: array<string, array{meta_type: string, meta_tables: list<non-empty-string>, cache_groups: list<non-empty-string>}>, cleanup: (callable(array{scope: 'site'|'network', site_id: int, plugin_file: string}): void)|null} $args
 	 *
 	 * @param   PluginIdentity       $identity       The plugin's identity.
 	 * @param   array<string, mixed> $footprint      The names and prefixes of every kind but the meta kinds, by kind.
@@ -82,7 +82,7 @@ final class Uninstaller {
 	 *
 	 * @param   PluginIdentity       $identity  The plugin's identity.
 	 * @param   array<string, mixed> $footprint The plugin's stored data by kind.
-	 * @param   array<string, mixed> $args      Optional. The consent (an option, its key in a grouped row, or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default is none, which keeps the footprint.
+	 * @param   array<string, mixed> $args      Optional. The consent (an option or a constant), the meta types the meta kinds may name beside post, term and comment, and the cleanup. Default is none, which keeps the footprint.
 	 *
 	 * @throws  RuntimeException Thrown when a web request runs on a large network, before any change, or when a read or delete, a site's pass or the cleanup failed, once every site was visited.
 	 *
@@ -96,7 +96,6 @@ final class Uninstaller {
 		);
 		$args['consent'] += array(
 			'option'   => '',
-			'key'      => '',
 			'constant' => '',
 		);
 
@@ -234,11 +233,7 @@ final class Uninstaller {
 				\error_log( '[' . plugin_basename( $this->identity->file ) . '] Uninstall could not unschedule: ' . \implode( '; ', $unscheduling ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- No logger exists while a plugin is uninstalled.
 			}
 
-			$consent = get_option( $this->args['consent']['option'] );
-			if ( '' !== $this->args['consent']['key'] ) {
-				$consent = \is_array( $consent ) ? $consent[ $this->args['consent']['key'] ] ?? null : null;
-			}
-			if ( 'yes' !== $consent && ! self::is_constant_true( $this->args['consent']['constant'] ) ) {
+			if ( 'yes' !== get_option( $this->args['consent']['option'] ) && ! self::is_constant_true( $this->args['consent']['constant'] ) ) {
 				return;
 			}
 
